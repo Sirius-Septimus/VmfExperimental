@@ -28,6 +28,10 @@ set(CMAKE_CXX_COMPILER g++)
 
 project(VmfExtension VERSION 1.0 LANGUAGES CXX)
 
+# To enable address sanitizer
+# add_compile_options(-fsanitize=address)
+# add_link_options(-fsanitize=address)
+
 # Check that CMAKE_INSTALL_PREFIX directory is properly defined, exit with error if not
 if (NOT IS_DIRECTORY ${CMAKE_INSTALL_PREFIX})
   message( FATAL_ERROR "CMake variable CMAKE_INSTALL_PREFIX must be defined as full path to a VMF install tree, please use cmake -DCMAKE_INSTALL_PREFIX=/full/path/to/VMF" )
@@ -38,10 +42,52 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_INSTALL_PREFIX}/cmake")
 include(vmf_imports)
 include(vmf)
 
+# --- VMF workaround patch ---
+# The vmf_framework target imported from the installed VMF tree incorrectly sets:
+#   - INTERFACE_INCLUDE_DIRECTORIES to "/include"
+#   - IMPORTED_LOCATION to "/lib/libVMFFramework.so"
+# These paths are invalid or conflict with the actual installed VMF location.
+# Since VMF cannot be modified directly, we override the target's include path and library location here.
+# This ensures correct compilation and linking against the local VMF install tree.
+# Import CoreModules shared library
+
+add_library(vmf_core_modules SHARED IMPORTED)
+get_target_property(_vmf_includes vmf_framework INTERFACE_INCLUDE_DIRECTORIES)
+
+list(REMOVE_ITEM _vmf_includes "/include")
+
+list(APPEND _vmf_includes "${CMAKE_INSTALL_PREFIX}/include")
+
+if(WIN32)
+	set_target_properties(vmf_core_modules PROPERTIES
+		IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/plugins/CoreModules.dll"
+		IMPORTED_IMPLIB "${CMAKE_INSTALL_PREFIX}/plugins/CoreModules.lib"
+	)
+	set_target_properties(vmf_framework PROPERTIES
+  		INTERFACE_INCLUDE_DIRECTORIES "${_vmf_includes}"
+  		IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/bin/VMFFramework.dll"
+	)
+else()
+	set_target_properties(vmf_core_modules PROPERTIES
+  		IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/plugins/libCoreModules.so"
+	)
+	set_target_properties(vmf_framework PROPERTIES
+  		INTERFACE_INCLUDE_DIRECTORIES "${_vmf_includes}"
+ 		IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/lib/libVMFFramework.so"
+	)
+endif()
+
+# -----------------------------
+
+# Configure testing
+#include(GoogleTest)
+#enable_testing()
+#add_subdirectory(${PROJECT_SOURCE_DIR}/test)
+
 # ---- TAILOR SPECIFIC EXTENSION PACKAGES HERE ----
 
 # Add in extension package directories
 add_subdirectory(${PROJECT_SOURCE_DIR}/Determinism)
+add_subdirectory(${PROJECT_SOURCE_DIR}/AFLPlusPlus)
 add_subdirectory(${PROJECT_SOURCE_DIR}/Radamsa)
-#add_subdirectory(${PROJECT_SOURCE_DIR}/SamplePackage)
 

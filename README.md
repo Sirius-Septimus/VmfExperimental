@@ -8,8 +8,9 @@ modules along with associated data, tests, and documentation.
 
 | Package Name  | Description  | Last Updated  | Compatible With  | Developer Contact  |
 | ------------  | -----------  | ------------  | ---------------  | -----------------  |
+| AFLPlusPlus  | Implementation of additional mutators from the [AFL++](https://github.com/AFLplusplus/AFLplusplus) fuzzer not present in VMF | 2026-06-09  | VMF v5.1.0 | Vigilant Cyber Systems (dkoch@vigilantsys.com) |
 | Determinism  | These modules provide support for deterministic VMF runs and determinism validation  | 2025-03-18  | VMF v5.1.0 | Draper (vmf@draper.com) |
-| Radamsa  | Partial implementation of mutators from the [Radamsa](https://gitlab.com/akihe/radamsa) fuzzer | 2025-03-18  | VMF v5.1.0 | Draper (vmf@draper.com) |
+| Radamsa  | Implementation of mutators from the [Radamsa](https://gitlab.com/akihe/radamsa) and [Rusty-Radamsa](https://github.com/microsoft/rusty-radamsa) fuzzers | 2026-06-09  | VMF v5.1.0 | Vigilant Cyber Systems (dkoch@vigilantsys.com) |
 | SamplePackage  | This sample shows how to write a mutator module and set up your build process to integrate with VMF | 2025-03-18  | NA  | Draper (vmf@draper.com) |
 
 ## Organization
@@ -34,8 +35,7 @@ VaderModularFuzzer repository:
 
 VMF is built using CMake
 
-Building the Experimental repository also requires an installed instance of VMF. It may be installed
-in a public location like `/usr/local/vmf` or in the default location within a VMF source tree like
+Building the Experimental repository also requires an installed instance of VMF. It must be installed in the default location within a VMF source tree, like
 `/home/userdir/VaderModularFuzzer/build/vmf_install`. Specify the full path to the VMF install using
 `-DCMAKE_INSTALL_PREFIX=/path/to/VMF`.
 
@@ -83,8 +83,6 @@ To install the VMF extension libary, do this in the build directory:
 make install
 ```
 
-
 ## License
 All experimental modules must be license-compatible with VMF itself, which is licensed under the GNU General Public License Version 2.
-
 
