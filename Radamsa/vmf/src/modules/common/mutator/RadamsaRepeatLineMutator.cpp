@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -55,6 +57,8 @@ void RadamsaRepeatLineMutator::init(ConfigInterface& config)
     m_maxBufferGrowthBytes = (configured == 0)
         ? std::numeric_limits<size_t>::max()
         : static_cast<size_t>(configured);
+
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -64,7 +68,7 @@ void RadamsaRepeatLineMutator::init(ConfigInterface& config)
  */
 RadamsaRepeatLineMutator::RadamsaRepeatLineMutator(std::string name) : MutatorModule(name)
 {
-    // rand.randInit();
+    
 }
 
 /**
@@ -92,8 +96,6 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     // Consume the original buffer by repeating a random line multiple times and appending a null-terminator to the end.
 
     constexpr size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
-    const size_t characterIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -122,13 +124,6 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    // Check if character index is within valid range
-    if (characterIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     //Check if the buffer size hits the shared memory maximum limit (frida)
     if(originalSize >= (1024 * 1024))
     {
@@ -140,7 +135,7 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
                                     GetNumberOfLinesAfterIndex(
                                                         originalBuffer,
                                                         originalSize,
-                                                        characterIndex)};
+                                                        0u)};
 
     // Select a random line to duplicate.
 
@@ -159,10 +154,6 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
                             randomLineIndex,
                             numberOfLinesAfterIndex)};
 
-    /*
-     *	Clamp numberOfRandomLineRepetitions against the configurable budget so the per-call allocation `lineData.Size * numberOfRandomLineRepetitions` stays bounded.
-     */
-
     // Cap repetitions so the per-call growth `lineData.Size * numberOfRandomLineRepetitions` stays within `m_maxBufferGrowthBytes`.
     size_t numberOfRandomLineRepetitions{GetRandomRepetitionLength(this->rand)};
     if (lineData.Size > 0u)
@@ -176,8 +167,23 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     // The new buffer will be multiple lines larger than the original buffer;
     // additionally, it will contain one additional byte since a null-terminator will be appended to the end.
-    
-    const size_t newBufferSize{originalSize + (lineData.Size * numberOfRandomLineRepetitions) + 1u};
+    const size_t maxTotalSize{std::numeric_limits<size_t>::max() - 1u};
+    if (originalSize > maxTotalSize) {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    const size_t remainingSizeBudget{maxTotalSize - originalSize};
+    if (lineData.Size > 0u && numberOfRandomLineRepetitions > (remainingSizeBudget / lineData.Size)) {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    const size_t totalBufferSize{originalSize + (lineData.Size * numberOfRandomLineRepetitions) + 1u};
+    if (totalBufferSize > static_cast<size_t>(INT_MAX)) {
+        //Check to see if this new buffer will fit within current bounds.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    const int newBufferSize{static_cast<int>(totalBufferSize)};
 
     //For better performance do not produce testcases that are over the size limit for the executor.
     // if (newBufferSize >= (1024 * 1024)) {
@@ -201,8 +207,8 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     memcpy(&newBuffer[destinationIndex], &originalBuffer[0], lineStart);
     destinationIndex += lineStart;
 
-    // Write the selected line (numberOfRandomLineRepetitions + 1) times
-    for (size_t k{0u}; k < (numberOfRandomLineRepetitions + 1u); ++k)
+    // Write the selected line numberOfRandomLineRepetitions times.
+    for (size_t k{0u}; k < numberOfRandomLineRepetitions; ++k)
     {
         memcpy(&newBuffer[destinationIndex], &originalBuffer[lineStart], lineData.Size);
         destinationIndex += lineData.Size;

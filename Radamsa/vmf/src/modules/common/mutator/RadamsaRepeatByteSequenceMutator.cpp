@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -55,6 +57,8 @@ void RadamsaRepeatByteSequenceMutator::init(ConfigInterface& config)
     m_maxBufferGrowthBytes = (configured == 0)
         ? std::numeric_limits<size_t>::max()
         : static_cast<size_t>(configured);
+
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -64,7 +68,7 @@ void RadamsaRepeatByteSequenceMutator::init(ConfigInterface& config)
  */
 RadamsaRepeatByteSequenceMutator::RadamsaRepeatByteSequenceMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -92,7 +96,6 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
     // select a random number of consecutive bytes and repeat them a random number of times
 
     constexpr size_t minimumSize{2u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -121,15 +124,6 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
         return;
     }
     
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-
-
     // Select random indexes for the start and end of the sequence
     const unsigned long start_lower{0ul};
     const unsigned long start_upper{static_cast<unsigned long>(originalSize - 1u - 1u)}; // additional -1 to leave at least one byte at the end
@@ -138,10 +132,6 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
     const unsigned long end_lower{static_cast<unsigned long>(start_index + 1u)};
     const unsigned long end_upper{static_cast<unsigned long>(originalSize - 1u)};
     const size_t end_index{static_cast<size_t>(rand->randBetween(end_lower, end_upper))};
-
-    /*
-     *	Clamp numberOfRepetitions against the configurable maxBufferGrowthBytes budget so the per-call allocation `seq_len * numberOfRepetitions` stays bounded. The repetition loop below runs i in [0, numberOfRepetitions). The post-sequence memcpy writes to `newBuffer + start_index + seq_len * numberOfRepetitions` and reads from `originalBuffer + start_index + seq_len`, the byte after the source sequence.
-     */
 
     const size_t seq_len{end_index - start_index + 1u};
 
@@ -153,8 +143,26 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
         numberOfRepetitions = (maxRepetitions > 0u) ? maxRepetitions : 1u;
     }
 
-    // Output layout: prefix [0, start_index) + (numberOfRepetitions + 1) sequence copies + suffix [end_index + 1, originalSize) + null terminator.
+    // Output layout: prefix [0, start_index) + numberOfRepetitions sequence copies + suffix [end_index + 1, originalSize) + null terminator.
+    const size_t maxTotalSize{std::numeric_limits<size_t>::max() - 1u};
+    if (originalSize > maxTotalSize)
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    const size_t remainingSizeBudget{maxTotalSize - originalSize};
+    if (seq_len > 0u && numberOfRepetitions > (remainingSizeBudget / seq_len))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
     const size_t newBufferSize{originalSize + (seq_len * numberOfRepetitions) + 1u};
+
+    if (newBufferSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
@@ -162,8 +170,8 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
     // Copy prefix [0, start_index).
     memcpy(newBuffer, originalBuffer, start_index);
 
-    // Copy (numberOfRepetitions + 1) copies of the sequence at successive offsets.
-    for (size_t i = 0u; i <= numberOfRepetitions; ++i)
+    // Copy numberOfRepetitions copies of the sequence at successive offsets.
+    for (size_t i = 0u; i < numberOfRepetitions; ++i)
     {
         memcpy(
             newBuffer + start_index + (i * seq_len),
@@ -174,7 +182,7 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
 
     // Copy suffix [end_index + 1, originalSize) immediately after the repetitions.
     memcpy(
-        newBuffer + start_index + ((numberOfRepetitions + 1u) * seq_len),
+        newBuffer + start_index + (numberOfRepetitions * seq_len),
         originalBuffer + end_index + 1u,
         originalSize - end_index - 1u
     );
