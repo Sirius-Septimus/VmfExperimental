@@ -45,5 +45,6 @@ class RadamsaDuplicateNodeMutator: public MutatorModule, public RadamsaTreeMutat
     private:
         VmfRand* rand;
         size_t m_maxDuplicateNodeNodes{524288u};
+        size_t m_maxDuplicateNodeOutputBytes{1048576u};
 };
 }

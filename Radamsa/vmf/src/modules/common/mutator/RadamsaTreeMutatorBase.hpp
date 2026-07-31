@@ -337,6 +337,36 @@ public:
         }
 
         /**
+         * @brief Estimates the serialized byte size of a subtree without building the output string.
+         *
+         * Root nodes contribute only their raw value bytes; non-root nodes contribute their value bytes plus
+         * one opening and one closing parenthesis, matching `toString()`.
+         *
+         * @param n The root of the subtree
+         */
+        size_t estimateSerializedSize(Node* n) {
+            if(!n) return 0u;
+
+            size_t total = n->value.size();
+            if (n->parent != nullptr)
+            {
+                total += 2u;
+            }
+
+            for (Node* child : n->children)
+            {
+                size_t childSize = estimateSerializedSize(child);
+                if (std::numeric_limits<size_t>::max() - total < childSize)
+                {
+                    throw RuntimeException{"Estimated serialized tree size overflowed size_t", RuntimeException::UNEXPECTED_ERROR};
+                }
+                total += childSize;
+            }
+
+            return total;
+        }
+
+        /**
          * @brief Counts the number of Nodes in a subtree including children
          * 
          * @param n The root of the subtree

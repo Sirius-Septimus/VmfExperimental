@@ -55,6 +55,12 @@ void RadamsaDuplicateNodeMutator::init(ConfigInterface& config)
     m_maxDuplicateNodeNodes = (configured == 0)
         ? std::numeric_limits<size_t>::max()
         : static_cast<size_t>(configured);
+
+    const int outputConfigured = config.getIntParam(getModuleName(), "maxDuplicateNodeOutputBytes",
+                                                   static_cast<int>(m_maxDuplicateNodeOutputBytes));
+    m_maxDuplicateNodeOutputBytes = (outputConfigured == 0)
+        ? std::numeric_limits<size_t>::max()
+        : static_cast<size_t>(outputConfigured);
 }
 
 /**
@@ -159,6 +165,14 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
     }
 
     tr.duplicateNode(nodeToDuplicate, nodeToDuplicate->parent);
+
+    // Reject oversized output before serializing the tree back into a string.
+    const size_t estimatedOutputSize{tr.estimateSerializedSize(tr.root) + 1u};
+    if (estimatedOutputSize > m_maxDuplicateNodeOutputBytes || estimatedOutputSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
     const string modTreeStr = tr.toString(tr.root);
     const size_t newBufferSize{modTreeStr.length() + 1}; // +1 to implicitly append a null terminator
