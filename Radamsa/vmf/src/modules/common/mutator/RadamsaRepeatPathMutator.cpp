@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -62,6 +64,8 @@ void RadamsaRepeatPathMutator::init(ConfigInterface& config)
     m_maxRepeatPathNodes = (nodesConfigured == 0)
         ? std::numeric_limits<size_t>::max()
         : static_cast<size_t>(nodesConfigured);
+
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -71,7 +75,7 @@ void RadamsaRepeatPathMutator::init(ConfigInterface& config)
  */
 RadamsaRepeatPathMutator::RadamsaRepeatPathMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -96,25 +100,15 @@ void RadamsaRepeatPathMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaRepeatPathMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Replace a random node's random child with a random amount of recursive copies of itself
 
     const size_t minimumSize{4u};   // minimal case consists of two single-character nodes
-    const size_t minimumSeedIndex{0u};
     const size_t minimumNodes{2u};
     size_t originalSize;
     char* originalBuffer;
 
     // Try to get buffer size and pointer, return early if buffer is not allocated
-    try
-    {
-        originalBuffer = baseEntry->getBufferPointer(testCaseKey);
-        originalSize = baseEntry->getBufferSize(testCaseKey);
-    }
-    catch (const RuntimeException& e)
-    {
-        // Buffer not allocated
-        return;
-    }
+    originalBuffer = baseEntry->getBufferPointer(testCaseKey);
+    originalSize = baseEntry->getBufferSize(testCaseKey);
 
     // Check if buffer pointer is valid (not null)
     if (originalBuffer == nullptr)
@@ -124,13 +118,6 @@ void RadamsaRepeatPathMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
@@ -156,17 +143,21 @@ void RadamsaRepeatPathMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    const unsigned long lower{0ul};
-    unsigned long upper{static_cast<unsigned long>(numNodes - 1)};
-    size_t parentIndex;
-    Node* parent;
-    do {
-        parentIndex = static_cast<size_t>(this->rand->randBetween(lower, upper));
-        parent =  tr.findNodeByIndex(tr.root, parentIndex);
-    } while (parent->children.size() <= 0);   // find a parent that actually has children
+    std::vector<Node*> internalNodes;
+    tr.collectInternalNodes(tr.root, internalNodes);
+    if (internalNodes.empty())
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
-    upper = static_cast<unsigned long>(parent->children.size() - 1);
-    size_t childIndex{static_cast<size_t>(this->rand->randBetween(lower, upper))};
+    const unsigned long lower{0ul};
+    const unsigned long upper{static_cast<unsigned long>(internalNodes.size() - 1)};
+    const size_t parentIndex{static_cast<size_t>(this->rand->randBetween(lower, upper))};
+    Node* parent = internalNodes[parentIndex];
+
+    const unsigned long childUpper{static_cast<unsigned long>(parent->children.size() - 1)};
+    size_t childIndex{static_cast<size_t>(this->rand->randBetween(lower, childUpper))};
     /*
      * Repetition count comes from GetRandomRepetitionLength. Two composable caps then bound the work: the fixed `m_maxPathRepetitions` cap clamps the iteration count up front, and the adaptive `m_maxRepeatPathNodes` cap is forwarded to `repeatPath`, which converts it into an effective iteration count from the per-iteration node delta.
      */
@@ -180,8 +171,12 @@ void RadamsaRepeatPathMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     const string modTreeStr = tr.toString(tr.root);
     const size_t newBufferSize{modTreeStr.length() + 1}; // +1 to implicitly append a null terminator
-
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    if (newBufferSize > INT_MAX) {
+        //Check to see if the newBufferSize excedes the maximum size.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
 
     std::strcpy(newBuffer, modTreeStr.c_str());

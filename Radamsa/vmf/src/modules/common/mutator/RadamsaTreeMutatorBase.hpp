@@ -114,8 +114,8 @@ public:
                 throw RuntimeException{"Tree string is empty", RuntimeException::UNEXPECTED_ERROR};
             }
 
-            //Cap the raw parse input before any tree construction work begins.
-	    if (treeStr.length() > maxInputBytes) {
+            // Cap the raw parse input before any tree construction work begins.
+            if (treeStr.length() > maxInputBytes) {
                 throw RuntimeException{"Tree string exceeds the maximum allowed input size", RuntimeException::UNEXPECTED_ERROR};
             }
 
@@ -368,6 +368,30 @@ public:
             }
 
             return nullptr;
+        }
+
+        /**
+         * @brief Collects all non-leaf nodes in a subtree so callers can pick valid parents directly.
+         *
+         * @param n The root of the subtree
+         * @param internalNodes Output vector that receives nodes with at least one child
+         */
+        void collectInternalNodes(Node* n, std::vector<Node*>& internalNodes)
+        {
+            if (n == nullptr)
+            {
+                return;
+            }
+
+            if (!n->children.empty())
+            {
+                internalNodes.push_back(n);
+            }
+
+            for (Node* child : n->children)
+            {
+                collectInternalNodes(child, internalNodes);
+            }
         }
         /**
          * @brief Inserts a Node as a child of the given parent. If parent is nullptr returns the newly created Node.
