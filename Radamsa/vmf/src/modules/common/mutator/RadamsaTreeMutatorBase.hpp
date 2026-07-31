@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -30,7 +32,7 @@ using std::string;
 namespace vmf
 {
 /**
- * 
+ * @brief Base class for all Node/Path type mutators. Contains helper functions for handling and creatings trees/nodes.
  */
 class RadamsaTreeMutatorBase: public RadamsaMutatorBase
 {
@@ -38,13 +40,24 @@ public:
     RadamsaTreeMutatorBase() = default;
     virtual ~RadamsaTreeMutatorBase() = default;
 
+    /**
+     * @struct Node
+     * 
+     * @brief A node of a N-ary tree. Contains a data value, a parent pointer, and 0 or more children.
+     */
     struct Node
     {
-        string value;
-        Node* parent;
-        std::vector<Node*> children;
+        string value;/**<String value of this node*/
+        Node* parent;/**<Pointer to the parent of this node. NULL if this node is the root.*/
+        std::vector<Node*> children;/**<Vector containing 0 or more nodes(children)*/
 
-        Node(string v, Node* p = nullptr) : value(v), parent(p) {};
+        /**
+         * @brief Node constructor
+         * 
+         * @param v Value to be stored in this Node
+         * @param p A pointer to the parent Node. Set to nullptr if this Node is the root
+         */
+        Node(string v, Node* p = nullptr) : value(v), parent(p) {}; /*< Node constructor*/
 
         // Disable copy constructor and copy assignment
         Node(const Node&) = delete;
@@ -62,6 +75,11 @@ public:
             return;
         }
 
+        /**
+         * @brief Creates a independent copy of a Node and all of its children.
+         * 
+         * @param newParent A pointer to the newly coppied parent Node
+         */
         Node* deepCopy(Node* newParent = nullptr) const
         {
             auto selfCopy = std::make_unique<Node>(this->value, newParent);
@@ -74,18 +92,54 @@ public:
             return selfCopy.release();
         }
     };
-
+    /**
+     * @struct Tree 
+     * 
+     * @brief A collection of nodes. A N-ary tree that is able to have 0 or more children. 
+     */
     struct Tree
     {
     private:
-        // parses a Tree from a string in the form ""A(B(C)(D))(E)""
+        static constexpr size_t maxInputBytes{1u << 20};
+        static constexpr size_t maxParsedNodes{1u << 19};
+        static constexpr size_t maxTreeDepth{4096u};
+
+        /**
+         * @brief Parses a Tree from a string in the form ""A(B(C)(D))(E)"". Builds a tree of Nodes using this string.
+         * 
+         * @param treeStr The string to parsed
+         */
         void buildTree(string treeStr) {
             if(treeStr.empty()) {
                 throw RuntimeException{"Tree string is empty", RuntimeException::UNEXPECTED_ERROR};
             }
 
+            // EDITED: Cap the raw parse input before any tree construction work begins.
+            if (treeStr.length() > maxInputBytes) {
+                throw RuntimeException{"Tree string exceeds the maximum allowed input size", RuntimeException::UNEXPECTED_ERROR};
+            }
+
             std::stack<Node*> stk;
             string value;
+            size_t parsedNodes{0u};
+
+            auto pushWithDepthCheck = [&](Node* node) {
+                if (stk.size() + 1u > maxTreeDepth) {
+                    throw RuntimeException{"Tree depth exceeds the maximum allowed depth", RuntimeException::UNEXPECTED_ERROR};
+                }
+                stk.push(node);
+            };
+
+            auto createNode = [&](const string& nodeValue, Node* parent = nullptr) -> Node* {
+                if (parsedNodes >= maxParsedNodes) {
+                    throw RuntimeException{"Tree node count exceeds the maximum allowed nodes", RuntimeException::UNEXPECTED_ERROR};
+                }
+
+                Node* n = insertNode(nodeValue, parent);
+                ++parsedNodes;
+                return n;
+            };
+
             for(size_t i = 0; i < treeStr.length(); ++i) {
                 unsigned char ch = treeStr[i];
 
@@ -96,14 +150,14 @@ public:
                     if(!value.empty()) {
                         Node* n;
                         if(stk.empty()) {
-                            n = insertNode(value);
+                            n = createNode(value);
                             this->root = n;
                         }
                         else {
-                            n = insertNode(value, stk.top());
+                            n = createNode(value, stk.top());
                         }
 
-                        stk.push(n);
+                        pushWithDepthCheck(n);
                         value.clear();
                     }
                     else {
@@ -118,7 +172,7 @@ public:
                         }
 
                         if(toPush != nullptr) {
-                            stk.push(toPush);
+                            pushWithDepthCheck(toPush);
                         }
                         else {
                             throw RuntimeException{"Unexpected open bracket without a parent node", RuntimeException::UNEXPECTED_ERROR};
@@ -131,7 +185,7 @@ public:
                     }
 
                     if(!value.empty()) {
-                        insertNode(value, stk.top());
+                        createNode(value, stk.top());
 
                         value.clear();
                     }
@@ -150,25 +204,25 @@ public:
 
             // case for TreeStr consisting of a single root node
             if(!value.empty() && this->root == nullptr) {
-                this->root = insertNode(value);
+                this->root = createNode(value);
             }
 
             return;
         }
     
     public:
-        Node* root = nullptr;
+        Node* root = nullptr; /**<Root of the tree */
 
         Tree() = default;
 
-        /*
-         *	Tree construction goes through the noexcept tryBuild factory. The throwing constructor form is deleted: a constructor that throws after attaching Nodes under root would leak those Nodes, since C++ does not run the class destructor for an object whose constructor threw.
+        Tree(string const&) = delete; /**<The throwing constructor form is removed. Use Tree::tryBuild instead. */
+
+        /**
+         * @brief Builds a Tree from `treeStr`. Returns std::nullopt on any parse failure. 
+         * Never throws. On parse failure the partially-built Tree's destructor runs before the optional resets, so no Node is leaked.
+         * 
+         * @param treeStr A string representing a tree in the form Root(Child(Grand-Child))(Child)/ A(B(C)(D))
          */
-
-        // The throwing constructor form is removed. Use Tree::tryBuild instead.
-        Tree(string const&) = delete;
-
-        // Builds a Tree from `treeStr`. Returns std::nullopt on any parse failure. Never throws. On parse failure the partially-built Tree's destructor runs before the optional resets, so no Node is leaked.
         [[nodiscard]] static std::optional<Tree> tryBuild(string const& treeStr) noexcept
         {
             std::optional<Tree> result;
@@ -184,17 +238,19 @@ public:
             return result;
         }
         
-        // deleting copy constructor and copy assignment to avoid shallow copies
-        Tree(const Tree&) = delete;
-        Tree& operator=(const Tree&) = delete;
+        Tree(const Tree&) = delete; /**<Deleting copy constructor to avoid shallow copies*/
+        Tree& operator=(const Tree&) = delete;/**<Deleting copy assignment operator to avoid shallow copies*/
 
-        // Move constructor
+        /**
+        * @brief Move constructor for Tree
+        */
         Tree(Tree&& other) noexcept {
             root = other.root;
             other.root = nullptr;
         }
-
-        // Move assignment operator
+        /** 
+        * @brief Move assignment operator for Tree
+        */
         Tree& operator=(Tree&& other) noexcept {
             if(this != &other) {    // prevents self-assignment
                 deleteNode(root);
@@ -207,22 +263,84 @@ public:
 
         ~Tree() { deleteNode(this->root); }
 
+        /** 
+         * @brief Creates a parenthesis-delimited string from the provided subtree.
+         * 
+         * @param n The root of the subtree of Nodes to be stringified
+        */
+        
         string toString(Node* n) {
-            // create a parenthesis-delimited string from subtree n
-
+            // 
             if(!n) return "";
 
-            string treeStr(n->value);
+            string treeStr;
 
-            for(Node* child : n->children) {
-                treeStr += "(";
-                treeStr += toString(child);
-                treeStr += ")";
+            // Explicit stack allocated on the heap: holds tuples of {node, child_index, visted}
+            std::vector<std::tuple<Node*, size_t, bool>> stack;
+
+            stack.push_back({n, 0, false});
+
+            while (!stack.empty()) {
+
+                // Get a reference to the top item so we can modify its child index
+                auto& [curr_node, idx, visted] = stack.back();
+                
+                //Case 1: Vist parent and place it outside.
+                if (curr_node->parent == NULL && !visted) {
+                    treeStr += n->value;
+                    visted = true;
+                    continue;
+                }
+
+                //Case 2: A signular node just return the treeStr.
+                if (curr_node->parent == NULL && curr_node->children.empty()){
+                    return treeStr;
+                }
+
+                //Case 3: Leaf Node (No Children)
+                if(curr_node->children.empty() && curr_node->parent != NULL && !visted) {
+                    treeStr += "(";
+                    treeStr += curr_node->value;
+                    treeStr += ")";
+                    stack.pop_back();
+                    continue;
+                }
+
+                //Case 4: Need to add closing parath. 
+                if(idx > curr_node->children.size() - 1 && curr_node->parent != NULL) {
+                    treeStr += ")";
+                    stack.pop_back();
+                    continue;
+                }
+
+                //Case 5: Node with children need to add opening parath.
+                if(!curr_node->children.empty() && !visted) {
+                    treeStr += "(";
+                    treeStr += curr_node->value;
+                    visted = true;
+                }
+
+                // Case 6: Process children.
+                if (idx <= curr_node->children.size() - 1) {
+                    Node* child = curr_node->children[idx];
+                    idx++; // Move parent index forward for when we return
+                    stack.push_back({child, 0, false});
+                }
+
+                // Case 7: Default
+                else {
+                    stack.pop_back();
+                }
             }
 
             return treeStr;
         }
 
+        /**
+         * @brief Counts the number of Nodes in a subtree including children
+         * 
+         * @param n The root of the subtree
+         */
         size_t countNodes(Node* n) {
             if(!n) return 0u;
 
@@ -231,9 +349,14 @@ public:
 
             return count;
         }
-    
+        
+        /**
+         * @brief Traverse tree in-order, returning index-th node.
+         * 
+         * @param n The root Node of the tree
+         * @param index the index of the Node to be found
+         */
         Node* findNodeByIndex(Node* n, size_t& index) {
-            // traverse tree in-order, returning index-th node
 
             if(n == nullptr) return nullptr;
             if(index == 0) return n;
@@ -246,7 +369,12 @@ public:
 
             return nullptr;
         }
-
+        /**
+         * @brief Inserts a Node as a child of the given parent. If parent is nullptr returns the newly created Node.
+         * 
+         * @param value The value to be stored with this node
+         * @param parent The parent that this node will be a child of
+         */
         Node* insertNode(string value, Node* parent = nullptr)
         {
             auto newNode = std::make_unique<Node>(value, parent);
@@ -257,8 +385,13 @@ public:
             return newNode.release();
         }
 
+        /**
+         * @brief Duplicates a node and all of its children.
+         * 
+         * @param original Pointer to the orginal root node that is to be duplicated
+         * @param newParent Pointer to the new root node of the duplicate
+         */
         Node* duplicateNode(Node* original, Node* newParent) {
-            // Duplicates a node and all of its children
 
             if(!original) {
                 throw RuntimeException{"Node to be duplicated must not be nullptr", RuntimeException::USAGE_ERROR};
@@ -281,9 +414,14 @@ public:
 
             return duplicate;
         }
-
+        
+        /**
+         * @brief Replace one node's value with another's.
+         * 
+         * @param toReplace The node that is to be overwritten
+         * @param toCopy The node that is to be copied
+        */
         void replaceNode(Node* toReplace, Node* toCopy) {
-            // Replace one node's value with another's
 
             if(!toReplace || !toCopy) {
                 throw RuntimeException{"Both nodes must not be nullptr", RuntimeException::USAGE_ERROR};
@@ -293,9 +431,13 @@ public:
 
             return;
         }
-
+        /**
+         * @brief Swap the values of two nodes.
+         * 
+         * @param node1 The first node to be swaped
+         * @param node2 The second node to be swaped
+        */
         void swapNodes(Node* node1, Node* node2) {
-            // Swap the values of two nodes
 
             if(!node1 || !node2) {
                 throw RuntimeException{"Both nodes to be swapped must not be nullptr", RuntimeException::USAGE_ERROR};
@@ -307,9 +449,12 @@ public:
 
             return;
         }
-
+        /**
+         * @brief Deallocate a node and its children, and remove this node from its parent child list.
+         * 
+         * @param n The node that is to be deallocated.
+        */
         void deleteNode(Node* n) {
-            // deallocate n and its children, and remove n from n->parent->children
 
             if(n == nullptr) return;
 
@@ -339,11 +484,23 @@ public:
             }
         }
     
-        /*
-         *	Iterative form. Each iteration deep-copies the subtree rooted at `parent` and attaches the copy as a new child, so live-tree size grows by exactly `(countNodes(parent) - countNodes(parent->children[childIndex]))` nodes per iteration. The structural invariant of the iterative form (parentCopy at iteration i is a deep copy of the parentCopy planted at iteration i-1, which is structurally identical to the original `parent`) keeps both K = countNodes(parent) and S = countNodes(parent->children[childIndex]) constant across all iterations of a single call, so the total node growth is `effectiveNumReps * (K - S)`. The cap is therefore computed once at entry by dividing the remaining node budget by the per-iteration delta, rather than measured incrementally after each iteration.
+        /** 
+         * @brief Iteratively deep-copies a path at the provided subtree to a specific child index.
+         * 
+         * Iterative form. Each iteration deep-copies the subtree rooted at `parent` and attaches the copy as a new child, 
+         * so live-tree size grows by exactly `(countNodes(parent) - countNodes(parent->children[childIndex]))` nodes per iteration. 
+         * The structural invariant of the iterative form (parentCopy at iteration i is a deep copy of the parentCopy planted at 
+         * iteration i-1, which is structurally identical to the original `parent`) keeps both K = countNodes(parent) 
+         * and S = countNodes(parent->children[childIndex]) constant across all iterations of a single call, so the total node 
+         * growth is `effectiveNumReps * (K - S)`.
+         * The cap is therefore computed once at entry by dividing the remaining node budget by the per-iteration delta, rather 
+         * than measured incrementally after each iteration.
+         *
+         * @param parent Root of the subtree to be repeated.
+         * @param childIndex Index to replace with the deep copy
+         * @param numReps Number of copies to be performed.
+         * @param maxTotalNodes Max number of Nodes that are to be created by repeating a path.
          */
-
-        // Replaces parent->children[childIndex] with successive deep copies of `parent`. Loops up to `numReps` times, further bounded by `maxTotalNodes` so the live tree never exceeds that node count. The default `maxTotalNodes` of `std::numeric_limits<size_t>::max()` disables the adaptive cap and runs the full `numReps` iterations. When the current tree already exceeds the budget no iterations are performed.
         void repeatPath(Node* parent, size_t childIndex, size_t numReps,
                         size_t maxTotalNodes = std::numeric_limits<size_t>::max())
         {
@@ -351,7 +508,9 @@ public:
             if (childIndex >= parent->children.size()) throw RuntimeException{"childIndex is out of bounds", RuntimeException::INDEX_OUT_OF_RANGE};
 
             /*
-             *	Compute the per-iteration node delta and the current tree size once. These are loop invariants for the iterative form, so a single division yields the maximum number of iterations that fit under the node budget.
+             *	Compute the per-iteration node delta and the current tree size once. 
+             *  These are loop invariants for the iterative form, so a single division 
+             *  yields the maximum number of iterations that fit under the node budget.
              */
             const size_t kSize = countNodes(parent);
             const size_t sSize = countNodes(parent->children[childIndex]);
