@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,14 @@ Module* RadamsaDuplicateNodeMutator::build(std::string name)
  */
 void RadamsaDuplicateNodeMutator::init(ConfigInterface& config)
 {
+    rand = VmfRand::getInstance();
 
+    // Clamp DuplicateNode growth by bounding the projected tree size before duplication.
+    const int configured = config.getIntParam(getModuleName(), "maxDuplicateNodeNodes",
+                                              static_cast<int>(m_maxDuplicateNodeNodes));
+    m_maxDuplicateNodeNodes = (configured == 0)
+        ? std::numeric_limits<size_t>::max()
+        : static_cast<size_t>(configured);
 }
 
 /**
@@ -55,7 +64,7 @@ void RadamsaDuplicateNodeMutator::init(ConfigInterface& config)
  */
 RadamsaDuplicateNodeMutator::RadamsaDuplicateNodeMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -83,7 +92,6 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
     // Duplicates existing node, including its children, and adds it to the same parent as the original
 
     const size_t minimumSize{4u};   // minimal case consists of two single-character nodes
-    const size_t minimumSeedIndex{0u};
     const size_t minimumNodes{2u};
     size_t originalSize;
     char* originalBuffer;
@@ -108,13 +116,6 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
 
     // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
@@ -145,12 +146,28 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
     size_t nodeIndexToDuplicate{static_cast<size_t>(this->rand->randBetween(lower, upper))}; // not const, because findNodeByIndex will modify it
     Node* nodeToDuplicate = tr.findNodeByIndex(tr.root, nodeIndexToDuplicate); 
 
+    // Estimate the growth of the duplicated subtree before attaching it.
+    const size_t duplicatedSubtreeNodes{tr.countNodes(nodeToDuplicate)};
+    if (m_maxDuplicateNodeNodes != std::numeric_limits<size_t>::max())
+    {
+        const size_t projectedTotalNodes = numNodes + duplicatedSubtreeNodes;
+        if (projectedTotalNodes > m_maxDuplicateNodeNodes)
+        {
+            CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+            return;
+        }
+    }
+
     tr.duplicateNode(nodeToDuplicate, nodeToDuplicate->parent);
 
     const string modTreeStr = tr.toString(tr.root);
     const size_t newBufferSize{modTreeStr.length() + 1}; // +1 to implicitly append a null terminator
-
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    if (newBufferSize > INT_MAX) {
+        //Check to see if the newBufferSize excedes the maximum size.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
 
     std::strcpy(newBuffer, modTreeStr.c_str());
