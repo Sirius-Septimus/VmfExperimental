@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaPermuteLinesMutator::build(std::string name)
  */
 void RadamsaPermuteLinesMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaPermuteLinesMutator::init(ConfigInterface& config)
  */
 RadamsaPermuteLinesMutator::RadamsaPermuteLinesMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -84,8 +86,6 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
 
     const size_t minimumSize{3u};   // minimal case consists of three newlines
     const size_t minimumLines{3u};  // for two lines, just use SwapLine
-    const size_t minimumSeedIndex{0u};
-    const size_t characterIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -114,18 +114,11 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-    const size_t numLines{
-                    GetNumberOfLinesAfterIndex(
-                            originalBuffer,
-                            originalSize,
-                                        characterIndex)};
+    // Cache all line ranges in one pass so the shuffle works from a prebuilt line list.
+    const std::vector<Line> lines{
+        GetAllLineData(originalBuffer, originalSize)
+    };
+    const size_t numLines{lines.size()};
 
     // Check if buffer has minimum required number of lines
     if (numLines < minimumLines) {
@@ -133,33 +126,22 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
         return;
     }
 
-    // create and initialize vectors of indeces and lines
+    // create and initialize vector of indices
     std::vector<size_t> lineOrder(numLines);
-    std::vector<Line> lines(numLines);
     for(size_t i{0}; i < numLines; ++i) {
         lineOrder[i] = i;
-        lines[i] = GetLineData(
-                            originalBuffer,
-                            originalSize,
-                            i,
-                            numLines);
     }
 
-    // randomize the line order
+    // Randomize only the index order; the line data itself was already cached above.
     // homebrew Fisher-Yates shuffle because std::shuffle can't use VmfRand
-    std::vector<Line> shuffledLines(numLines);
     for(size_t i{numLines - 1}; i > 0; --i) {
         long unsigned int min = 0;
         long unsigned int max = static_cast<long unsigned int>(i);
         size_t randIndex = this->rand->randBetween(min, max);
 
-        // swap index values
         const size_t temp = lineOrder[i];
         lineOrder[i] = lineOrder[randIndex];
         lineOrder[randIndex] = temp;
-
-        // copy into shuffled order
-        shuffledLines[i] = lines[lineOrder[i]];
     }    
 
     // create new buffer with modified order

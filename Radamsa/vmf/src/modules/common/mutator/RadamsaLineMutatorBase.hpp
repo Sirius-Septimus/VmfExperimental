@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -21,42 +23,57 @@
 #include "RadamsaMutatorBase.hpp"
 #include "VmfRand.hpp"
 
+#include <vector>
+
 namespace vmf
 {
 /**
- *
+ * @brief Base class for all Radamsa Line Mutators. A line is defined as a collection of bytes
+ * that is ended by a newline character.
  */
 class RadamsaLineMutatorBase: public RadamsaMutatorBase
 {
 public:
+    /**
+     * @struct Line
+     * 
+     * @brief This struct contains the information about a specific line contained in a data buffer.
+     */
     struct Line
     {
-        Line() = default;
+        Line() = default; 
         ~Line() = default;
 
-        Line(Line&&) = default;
-        Line(const Line&) = default;
+        Line(Line&&) = default; /**<Copy constructor for Line type*/
+        Line(const Line&) = default; /**<const Copy constructor for Line type*/
 
-        Line& operator=(Line&&) = default;
-        Line& operator=(const Line&) = default;
+        Line& operator=(Line&&) = default; /**<Move constructor for Line type*/
+        Line& operator=(const Line&) = default; /**<const Move constructor for Line type*/
 
-        bool operator==(const Line &other) const { 
+        bool operator==(const Line &other) const { /**<Equality operator for Line type*/
             return (IsValid == other.IsValid && 
                     StartIndex == other.StartIndex && 
                     Size == other.Size); 
         }
-        bool operator!=(const Line &other) const { return !(*this == other); } // we may want to change this to test for equality instead of identity
+        bool operator!=(const Line &other) const { return !(*this == other); } /**<Identity operator for Line type*/
 
-        bool IsValid{false};
-        size_t StartIndex{0u};
-        size_t Size{0u};
+        bool IsValid{false}; /**<Is the line valid*/
+        size_t StartIndex{0};/**<Starting Index of the line*/
+        size_t Size{0}; /**<Size of the line*/
     };
-
+    /**
+     * @struct LineVector
+     * 
+     * @brief A struct that contains the content of a line. 
+     */
     struct LineVector
     {
         ~LineVector() = default;
         LineVector() = default;
 
+        /** 
+        * @brief Constructor for LineVector type
+        * */
         LineVector(
             const char* const buffer,
             const Line& lineData)
@@ -66,7 +83,9 @@ public:
 
             Size = lineData.Size;
         }
-
+        /** 
+        * @brief Copy constructor for LineVector type
+        * */
         LineVector(const LineVector &other) noexcept
         {
             // Copy Data
@@ -79,17 +98,19 @@ public:
             Size = size;
         }
 
-        /*
-         *	Move-construct by transferring ownership of `other.Data` directly via std::unique_ptr move-construction. unique_ptr::release() returns the raw pointer and the caller becomes responsible for deletion; std::move preserves the ownership chain.
+        /**
+         * @brief Move constructor operator for LineVector. Transfers ownership of `other.Data` via std::unique_ptr's move-constructor. 
+         * After the move, `other.Data == nullptr` and `other.Size == 0`.
          */
-
-        // Move-constructs by transferring ownership of `other.Data` via std::unique_ptr's move-constructor. After the move, `other.Data == nullptr` and `other.Size == 0`.
         LineVector(LineVector&& other) noexcept
             : Data{std::move(other.Data)}, Size{other.Size}
         {
             other.Size = 0u;
         }
 
+        /**
+         * @brief Copy assignment operator for LineVector.
+         */
         LineVector& operator=(const LineVector& other)
         {
             // Copy Data
@@ -104,11 +125,10 @@ public:
             return *this;
         }
 
-        /*
-         *	Move-assign by transferring ownership of `other.Data` via std::unique_ptr move-assignment.
-         */
-
-        // Move-assigns by transferring ownership of `other.Data` via std::unique_ptr's move-assignment. After the move, `other.Data == nullptr` and `other.Size == 0`.
+        /** 
+        * @brief Move assignment operator for LineVector. Transfers ownership of `other.Data` via std::unique_ptr's move-assignment.
+        * After the move, `other.Data == nullptr` and `other.Size == 0`.
+        */
         LineVector& operator=(LineVector&& other) noexcept
         {
             if (this != &other)
@@ -120,22 +140,35 @@ public:
             return *this;
         }
 
+        /**
+         * @brief Equality operator for LineVector.
+         */
         bool operator==(const LineVector &other) const { 
             return (Size == other.Size && 
                     (memcmp(Data.get(), other.Data.get(), other.Size) == 0)); 
         }
 
+        /**
+         * @brief Inequality operator for LineVector.
+         */
         bool operator!=(const LineVector &other) const { return !(*this == other); } // we may want to change this to test for equality instead of identity
 
-        std::unique_ptr<char[]> Data{nullptr};
-        size_t Size{0u};
+        std::unique_ptr<char[]> Data{nullptr}; /**<Raw data pointer */
+        size_t Size{0u}; /**<Size of the data */
     };
-
+    /**
+     * @struct LineList
+     * 
+     * @brief A struct that defines a group of Lines and their data vectors in contiguous order. 
+     */
     struct LineList
     {
         ~LineList() = default;
         LineList() = default;
 
+        /**
+         * @brief Constructor for a LineList using a raw data buffer. 
+         */
         LineList(
             const char* const buffer,
             const std::vector<Line>& lineData) noexcept
@@ -148,7 +181,7 @@ public:
             {
                 const Line& line{lineData.at(it)};
 
-                data[it] = std::move(LineVector{buffer,line});
+                data[it] = LineVector{buffer,line};
 
                 Capacity += line.Size;
             }
@@ -157,6 +190,9 @@ public:
             Data = std::move(data);
         }
 
+        /**
+         * @brief Copy constructor for a LineList. 
+         */
         LineList(const LineList& other) noexcept
         {
             // Copy Data
@@ -173,12 +209,12 @@ public:
                 Data[it] = other.Data[it];
             }
         }
-
-        /*
-         *	Move-construct by transferring ownership of `other.Data` via std::unique_ptr move-construction. The contained LineVector[] array and every char[] buffer owned by its elements travel with `Data`.
-         */
-
-        // Move-constructs by transferring ownership of `other.Data` via std::unique_ptr's move-constructor. After the move, `other.Data == nullptr`, `other.Capacity == 0`, and `other.NumberOfElements == 0`.
+        /**
+        * @brief Move Constructor for LineList. 
+        * 
+        * Transfers ownership of `other.Data` via std::unique_ptr's move-constructor.
+        * After the move, `other.Data == nullptr`, `other.Capacity == 0`, and `other.NumberOfElements == 0`.
+        */ 
         LineList(LineList&& other) noexcept
             : Data{std::move(other.Data)},
               NumberOfElements{other.NumberOfElements},
@@ -188,6 +224,9 @@ public:
             other.Capacity = 0u;
         }
 
+        /**
+         * @brief Copy assignment operator for LineList.
+         */
         LineList& operator=(const LineList& other)
         {
             // Copy Data
@@ -198,9 +237,8 @@ public:
             Capacity = other.Capacity;
 
             Data = std::make_unique<LineVector[]>(numberOfElements);
-            //memcpy(Data.get(), other.Data.get(), numberOfElements); //not legal
-            int count = numberOfElements;
-            for(int i=0; i<count; i++)
+            size_t count = numberOfElements;
+            for(size_t i=0; i<count; i++)
             {
                 Data[i] = other.Data[i];
             }
@@ -208,11 +246,10 @@ public:
             return *this;
         }
 
-        /*
-         *	Move-assign by transferring ownership of `other.Data` via std::unique_ptr move-assignment.
-         */
 
-        // Move-assigns by transferring ownership of `other.Data` via std::unique_ptr's move-assignment.
+        /**
+         * @brief Move-assigns by transferring ownership of `other.Data` via std::unique_ptr's move-assignment.
+         */
         LineList& operator=(LineList&& other) noexcept
         {
             if (this != &other)
@@ -226,6 +263,9 @@ public:
             return *this;
         }
 
+        /**
+         * @brief Comparison operator for LineList Type.
+         */
         bool operator==(const LineList& other) const
         {
             auto compareLineVectors{
@@ -255,16 +295,27 @@ public:
                     (compareLineVectors(Data.get(), other.Data.get())));
         }
 
+        /**
+         * @brief Inequality operator for LineList Type.
+         */
         bool operator!=(const LineList& other) const { return !(*this == other); }
 
-        std::unique_ptr<LineVector[]> Data{nullptr};
-        size_t NumberOfElements{0u};
-        size_t Capacity{0u};
+        std::unique_ptr<LineVector[]> Data{nullptr}; /**<Pointer to line data */
+        size_t NumberOfElements{0u}; /**<Number of lines currently in the vector*/
+        size_t Capacity{0u}; /**<Number of lines that can be held in this vector */
     };
 
     RadamsaLineMutatorBase() = default;
     virtual ~RadamsaLineMutatorBase() = default;
 
+    /**
+     * @brief Obtains data of a line at a specific index in a data buffer.
+     * 
+     * @param buffer Input buffer to search
+     * @param size The size of the input buffer
+     * @param lineIndex Line iandex to find data for
+     * @param numberOfLinesAfterIndex The number of lines that comes after the target index
+     */
     Line GetLineData(
                      const char* const buffer,
                      const size_t size,
@@ -284,8 +335,7 @@ public:
                                                             buffer,
                                                             size,
                                                             0u)};
-
-        if (lineIndex > totalNumberOfLines - 1u)
+        if (lineIndex >= totalNumberOfLines)
             throw RuntimeException{"Line index exceeds the maximum number of lines", RuntimeException::UNEXPECTED_ERROR};
 
         if (numberOfLinesAfterIndex > totalNumberOfLines)
@@ -328,6 +378,64 @@ public:
         return lineData;
     }
 
+    /**
+     * @brief Obtains all line ranges in a buffer using a single forward scan.
+     *
+     * Newline-terminated segments are returned as-is, and a final trailing segment
+     * without a newline is treated as one logical line.
+     *
+     * @param buffer Input buffer to search
+     * @param size The size of the input buffer
+     */
+    std::vector<Line> GetAllLineData(
+                                   const char* const buffer,
+                                   const size_t size)
+    {
+        constexpr size_t minimumSize{1u};
+
+        if (size < minimumSize)
+            throw RuntimeException{"The buffer's minimum size must be greater than or equal to 1", RuntimeException::USAGE_ERROR};
+
+        if (buffer == nullptr)
+            throw RuntimeException{"Input buffer is null", RuntimeException::UNEXPECTED_ERROR};
+
+        std::vector<Line> lines;
+        lines.reserve(8u);
+
+        Line currentLine;
+        currentLine.IsValid = true;
+        currentLine.StartIndex = 0u;
+
+        for (size_t it{0u}; it < size; ++it)
+        {
+            ++currentLine.Size;
+
+            if (buffer[it] == '\n')
+            {
+                lines.push_back(currentLine);
+
+                currentLine = Line{};
+                if (it + 1u < size)
+                {
+                    currentLine.IsValid = true;
+                    currentLine.StartIndex = it + 1u;
+                }
+            }
+        }
+
+        if (currentLine.IsValid && currentLine.Size > 0u)
+            lines.push_back(currentLine);
+
+        return lines;
+    }
+
+    /**
+     * @brief Obtains the number of a lines after a specific index.
+     * 
+     * @param buffer Data buffer to search through
+     * @param size Size of the provided data buffer
+     * @param index Index to start the line search at
+     */
     size_t GetNumberOfLinesAfterIndex(
                                       const char* const buffer,
                                       const size_t size,
@@ -350,9 +458,17 @@ public:
             if(buffer[it] == '\n')
                 ++numberOfLines;
 
-        return numberOfLines;
+        // Treat newline-free input as a single logical line so line mutators
+        // can still operate on buffers that do not contain any '\n' bytes.
+        return (numberOfLines == 0u) ? 1u : numberOfLines;
     }
 
+    /**
+     * @brief Checks to see if a given buffer contains contains UTF-8 or a \0.
+     * 
+     * @param buffer Data buffer to search through
+     * @param size Size of the data buffer
+     */
     bool IsBinarish(
                     const char* const buffer,
                     const size_t size)
@@ -369,7 +485,6 @@ public:
 
     for(size_t it{0}; it < binarishPeekSize; ++it)
     {
-        // Peek into the data and return true if it contains UTF-8 or \0.
 
         if(it == size)
             break;
@@ -383,26 +498,5 @@ public:
 
     return false;
 }
-
-    size_t GetRandomLogValue(const size_t maximumValue, VmfRand* rand)
-    {
-        constexpr size_t minimumValue{2u};
-
-        if(maximumValue <= minimumValue)
-            return 0u;
-
-        return GetRandomN_Bit(
-                            rand->randBetween(0ul, static_cast<unsigned long>(maximumValue - minimumValue)) + minimumValue,
-                            rand);
-    }
-
-    size_t GetRandomN_Bit(const size_t n, VmfRand* rand)
-    {
-        const size_t highValue{(n - 1u) << 1u};
-        const size_t randomValue{rand->randBetween(0ul, static_cast<unsigned long>(highValue))};
-        const size_t nBitValue{randomValue | highValue};
-
-        return nBitValue;
-    }
 };
 }

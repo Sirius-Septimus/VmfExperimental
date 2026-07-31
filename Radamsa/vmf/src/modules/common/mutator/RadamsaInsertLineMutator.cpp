@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaInsertLineMutator::build(std::string name)
  */
 void RadamsaInsertLineMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaInsertLineMutator::init(ConfigInterface& config)
  */
 RadamsaInsertLineMutator::RadamsaInsertLineMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -84,7 +86,6 @@ void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     const size_t minimumSize{2};   // minimal case consists of two newlines
     const size_t minimumLines{2};
-    const size_t minimumSeedIndex{0u};
     const size_t characterIndex{0u};
     size_t originalSize;
     char* originalBuffer;
@@ -114,18 +115,11 @@ void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-    const size_t numLines{
-                    GetNumberOfLinesAfterIndex(
-                                        originalBuffer,
-                                        originalSize,
-                                        characterIndex)};
+    // Cache all line ranges in one pass so we do not rescan the buffer for every line.
+    const std::vector<Line> lines{
+        GetAllLineData(originalBuffer, originalSize)
+    };
+    const size_t numLines{lines.size()};
 
     // Check if buffer has minimum required number of lines
     if (numLines < minimumLines) {
@@ -134,14 +128,8 @@ void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     }
 
     std::vector<size_t> lineOrder(numLines);
-    std::vector<Line> lines(numLines);
     for(size_t i{0}; i < numLines; ++i) {
         lineOrder[i] = i;
-        lines[i] = GetLineData(
-                            originalBuffer,
-                            originalSize,
-                            i,
-                            numLines);
     }
 
     const size_t original_lineIndex = static_cast<size_t>(this->rand->randBetween(static_cast<unsigned long>(characterIndex), static_cast<unsigned long>(numLines - 1)));
