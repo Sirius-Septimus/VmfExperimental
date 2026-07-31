@@ -114,8 +114,8 @@ public:
                 throw RuntimeException{"Tree string is empty", RuntimeException::UNEXPECTED_ERROR};
             }
 
-            // EDITED: Cap the raw parse input before any tree construction work begins.
-            if (treeStr.length() > maxInputBytes) {
+            //Cap the raw parse input before any tree construction work begins.
+	    if (treeStr.length() > maxInputBytes) {
                 throw RuntimeException{"Tree string exceeds the maximum allowed input size", RuntimeException::UNEXPECTED_ERROR};
             }
 
