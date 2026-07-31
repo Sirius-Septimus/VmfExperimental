@@ -23,6 +23,7 @@
 #include <stack>
 #include <optional>
 #include <limits>
+#include <utility>
 #include "RadamsaMutatorBase.hpp"
 #include "RuntimeException.hpp"
 #include "VmfRand.hpp"
@@ -82,13 +83,26 @@ public:
          */
         Node* deepCopy(Node* newParent = nullptr) const
         {
+            // Use an explicit worklist so subtree copies do not recurse on the call stack.
             auto selfCopy = std::make_unique<Node>(this->value, newParent);
-            for (Node* child : this->children)
+            std::vector<std::pair<const Node*, Node*>> worklist;
+            worklist.push_back({this, selfCopy.get()});
+
+            while (!worklist.empty())
             {
-                std::unique_ptr<Node> childCopy{child->deepCopy(selfCopy.get())};
-                selfCopy->children.push_back(childCopy.get());
-                childCopy.release();
+                const auto [originalNode, copyNode] = worklist.back();
+                worklist.pop_back();
+
+                for (Node* child : originalNode->children)
+                {
+                    auto childCopy = std::make_unique<Node>(child->value, copyNode);
+                    Node* childCopyRaw = childCopy.get();
+                    copyNode->children.push_back(childCopyRaw);
+                    childCopy.release();
+                    worklist.push_back({child, childCopyRaw});
+                }
             }
+
             return selfCopy.release();
         }
     };
@@ -374,8 +388,19 @@ public:
         size_t countNodes(Node* n) {
             if(!n) return 0u;
 
-            size_t count = 1; // count n itself
-            for(Node* child : n->children) count += countNodes(child);
+            size_t count = 0u;
+            std::vector<Node*> worklist{n};
+            while (!worklist.empty())
+            {
+                Node* current = worklist.back();
+                worklist.pop_back();
+                ++count;
+
+                for (Node* child : current->children)
+                {
+                    worklist.push_back(child);
+                }
+            }
 
             return count;
         }
@@ -387,14 +412,21 @@ public:
          * @param index the index of the Node to be found
          */
         Node* findNodeByIndex(Node* n, size_t& index) {
-
             if(n == nullptr) return nullptr;
-            if(index == 0) return n;
 
-            --index;
-            for(Node* child : n->children) {
-                Node* result = findNodeByIndex(child, index);
-                if(result != nullptr) return result;
+            std::vector<Node*> worklist{n};
+            while (!worklist.empty()) {
+                Node* current = worklist.back();
+                worklist.pop_back();
+
+                if (index == 0u) {
+                    return current;
+                }
+
+                --index;
+                for (auto it = current->children.rbegin(); it != current->children.rend(); ++it) {
+                    worklist.push_back(*it);
+                }
             }
 
             return nullptr;
@@ -446,7 +478,6 @@ public:
          * @param newParent Pointer to the new root node of the duplicate
          */
         Node* duplicateNode(Node* original, Node* newParent) {
-
             if(!original) {
                 throw RuntimeException{"Node to be duplicated must not be nullptr", RuntimeException::USAGE_ERROR};
             }
@@ -458,12 +489,19 @@ public:
             }
 
             Node* duplicate = insertNode(original->value, newParent);
+            std::vector<std::pair<const Node*, Node*>> worklist;
+            worklist.push_back({original, duplicate});
 
-            for(Node* child : original->children) {
-                /*
-                 *	duplicateNode attaches the new child via insertNode internally, so the recursive call alone is sufficient. Discard the return value; an outer push_back here would be a second attach of the same pointer and double-delete on Tree teardown.
-                 */
-                duplicateNode(child, duplicate);
+            while (!worklist.empty())
+            {
+                const auto [sourceNode, copyParent] = worklist.back();
+                worklist.pop_back();
+
+                for (Node* child : sourceNode->children)
+                {
+                    Node* childCopy = insertNode(child->value, copyParent);
+                    worklist.push_back({child, childCopy});
+                }
             }
 
             return duplicate;
