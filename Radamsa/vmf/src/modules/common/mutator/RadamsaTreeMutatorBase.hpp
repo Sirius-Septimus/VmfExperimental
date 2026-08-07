@@ -361,20 +361,34 @@ public:
         size_t estimateSerializedSize(Node* n) {
             if(!n) return 0u;
 
-            size_t total = n->value.size();
-            if (n->parent != nullptr)
-            {
-                total += 2u;
-            }
+            size_t total = 0u;
+            std::vector<Node*> worklist{n};
 
-            for (Node* child : n->children)
+            while (!worklist.empty())
             {
-                size_t childSize = estimateSerializedSize(child);
-                if (std::numeric_limits<size_t>::max() - total < childSize)
+                Node* current = worklist.back();
+                worklist.pop_back();
+
+                size_t nodeSize = current->value.size();
+                if (current->parent != nullptr)
+                {
+                    if (std::numeric_limits<size_t>::max() - nodeSize < 2u)
+                    {
+                        throw RuntimeException{"Estimated serialized tree size overflowed size_t", RuntimeException::UNEXPECTED_ERROR};
+                    }
+                    nodeSize += 2u;
+                }
+
+                if (std::numeric_limits<size_t>::max() - total < nodeSize)
                 {
                     throw RuntimeException{"Estimated serialized tree size overflowed size_t", RuntimeException::UNEXPECTED_ERROR};
                 }
-                total += childSize;
+                total += nodeSize;
+
+                for (Node* child : current->children)
+                {
+                    worklist.push_back(child);
+                }
             }
 
             return total;

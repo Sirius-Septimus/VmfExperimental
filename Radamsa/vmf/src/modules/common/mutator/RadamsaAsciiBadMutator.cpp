@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -62,6 +64,8 @@ void RadamsaAsciiBadMutator::init(ConfigInterface& config)
     m_maxNewlineInsertions = (configured == 0)
         ? std::numeric_limits<size_t>::max()
         : static_cast<size_t>(configured);
+
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -71,7 +75,7 @@ void RadamsaAsciiBadMutator::init(ConfigInterface& config)
  */
 RadamsaAsciiBadMutator::RadamsaAsciiBadMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -94,17 +98,26 @@ void RadamsaAsciiBadMutator::registerStorageNeeds(StorageRegistry& registry)
     // by the input generator that calls them
 }
 
-// Helper stuff starts here
+/**
+ * @struct Delimited
+ * 
+ * @brief A strcuture that represents a chunk of data with delimiting quotes enclosing it
+ */
 struct Delimited {
-    // Chunk of Data, usually with delimiting quotes enclosing it
 
-    Byte delim;
-    vector<Byte> data;
+    Byte delim; /**< The marker byte of delimitation*/
+    vector<Byte> data; /**< The data for this chunk */
 
+    /**
+     * @brief Helper function to create a Delimited struct
+     */
     static Delimited make(char c, const vector<Byte>& d) {
         return Delimited{Byte(c), d};
     }
 
+    /**
+     * @brief Transforms data chunks into a single continuous byte vector.
+    */
     void unlex(vector<Byte>& out) const {
         out.push_back(delim);
         out.insert(out.end(), data.begin(), data.end());
@@ -114,18 +127,34 @@ struct Delimited {
     }
 };
 
+/**
+ * @struct Text
+ * 
+ * @brief This structure contains raw text/ delimited chunks.
+ */
 struct Text {
-    // Raw text / delimited chunk
 public: 
-    variant<vector<Byte>, Delimited> value;
+    variant<vector<Byte>, Delimited> value; /**< Variant value for raw data.*/
 
+    /**
+     * @brief Helper function to create a Text struct using a raw byte vector.
+     */
     static Text texty(const vector<Byte>& s) {
         return Text{s};
     }
+    /**
+     * @brief Helper function to create a Text struct using delimited data.
+     */
     static Text delim(const Delimited& d) {
         return Text{d};
     }
 
+    /**
+     * @brief Wrapper function for mutating a text buffer in three possible ways.
+     * 
+     * @param rand Pointer to the VMFRand instance
+     * @param maxNewlineInsertions The max number of possible newline insertions using this mutator.
+     */
     void mutate(VmfRand* rand, size_t maxNewlineInsertions) {
         vector<Byte>* targetData;
         if (vector<Byte>* p = get_if<vector<Byte>>(&value)) {
@@ -137,7 +166,11 @@ public:
 
         return;
     }
-
+    /**
+     * @brief Transforms data chunks into a single continuous byte vector.
+     * 
+     * @param out The byte vector to output the data chunks
+    */
     void unlex(vector<Byte>& out) const {
         if (holds_alternative<vector<Byte>>(value)) {
             const vector<Byte>& a = get<vector<Byte>>(value);
@@ -176,8 +209,12 @@ private:
         return list;
     };
 
+    /** 
+     * @brief Randomly concatenate 1-19 "silly strings"
+     * 
+     * @param rand Pointer to the random generator instance
+     */
     vector<Byte> randomBadness(VmfRand* rand) {
-        // Randomly concatenate 1-19 "silly strings"
 
         const vector<vector<Byte>> sillyStrings = getSillyStrings();
         int repeatCount = rand->randBetween(1, 19);
@@ -191,7 +228,17 @@ private:
         return out;
     }
 
-    void mutateTextData(vector<Byte>& data, VmfRand* rand, size_t maxNewlineInsertions) {
+    /**
+     * @brief Performs mutation of "text" using a byte vector representation.
+     * There are three possible mutation types that can occurr: Inserting known bad ASCII strings into the buffer, 
+     * replacing buffer indexs with known bad ASCII strings, or pushing a random number of newline characters.
+     * New lines that are inserted are limited by maxNewLineInsertions to prevent memory exhaustion.
+     * 
+     * @param data Byte vector to mutate upon
+     * @param rand Pointer to the random generator instance
+     * @param maxNewLineInsertions The max number of possible newline insertions using this mutator
+     */
+    void mutateTextData(vector<Byte>& data, VmfRand* rand, size_t maxNewLineInsertions) {
         size_t byteIndex = rand->randBetween(0, int(data.size()));
         int mutationType = rand->randBetween(0, 2);
         switch (mutationType) {
@@ -229,8 +276,8 @@ private:
                  *	Clamp the per-call newline-insertion count against the configurable budget so the case-9 newline-flood case stays bounded under GA-feedback iteration.
                  */
 
-                // Cap insertions so per-call growth stays within `m_maxNewlineInsertions`.
-                if (newlineCount > maxNewlineInsertions) newlineCount = maxNewlineInsertions;
+                // Cap insertions so per-call growth stays within `m_maxNewLineInsertions`.
+                if (newlineCount > maxNewLineInsertions) newlineCount = maxNewLineInsertions;
                 data.insert(data.begin() + byteIndex, newlineCount, Byte('\n'));
                 break;
             }
@@ -239,11 +286,18 @@ private:
         return;
     }
 };
-
+/**
+ * @struct Data
+ * 
+ * @brief This struct contains the raw data for chunks
+ */
 struct Data {
-    // Chunk data in two flavors: bytes, and texty
-    variant<vector<Byte>, vector<Text>> value;
-
+    variant<vector<Byte>, vector<Text>> value; /**< Chunk data is either bytes, or text */
+    /**
+     * @brief Transforms data chunks into a single continuous byte vector.
+     * 
+     * @param out The out-buffer to place the parsed data chunks
+     */
     void unlex(vector<Byte>& out) const {
         if (holds_alternative<vector<Byte>>(value)) {
             const vector<Byte>& a = get<vector<Byte>>(value);
@@ -256,11 +310,20 @@ struct Data {
         }
     }
 };
-
+/**
+ * @struct Ascii
+ * 
+ * @brief This structure contains ASCII values and their raw data values which are broken into chunks.
+ */
 struct Ascii {
 public:
-    vector<Data> chunks;
+    vector<Data> chunks; /**< A collection of raw data parsed from provided ASCII */
 
+    /**
+     * @brief Searches through a byte vector to see if it contains minimal ASCII values and returns an ASCII struct if so.
+     * 
+     * @param data Byte vector to search though
+     */
     static optional<Ascii> parse(const vector<Byte>& data) {
         vector<Data> out;
         bool success = parseBytes(data, 6, out);
@@ -268,6 +331,12 @@ public:
         return Ascii{out};
     }
 
+    /**
+     * @brief Wrapper function for mutating a ASCII buffer in three possible ways.
+     * 
+     * @param rand Pointer to the VMFRand instance
+     * @param maxNewlineInsertions The max number of possible newline insertions using this mutator.
+     */
     void mutate(VmfRand* rand, size_t maxNewlineInsertions) {
         vector<size_t> textChunkIndices;
         for (size_t i = 0; i < chunks.size(); ++i) {
@@ -285,7 +354,10 @@ public:
 
         return;
     }
-
+    /**
+     * @brief Transforms data chunks into a single continuous byte vector.
+     * 
+     */
     vector<Byte> unlex() const {
         vector<Byte> out;
         out.reserve(chunks.size() * 16);
@@ -296,17 +368,29 @@ public:
     }
 
 private:
+
+    /**
+     * @brief Helper function to check if a specific byte is within valid ASCII range of printable characters.
+     * Includes horizontal tab, line feed, and carriage return.
+     * 
+     * @param b Byte to check. 
+     */
     static bool isTexty(Byte b) noexcept {
         return b == 9 || b == 10 || b == 13 || (b >= 32 && b <= 126);
     }
     
+    /**
+     * @brief Splits a byte vector into Data chunks. The first chunk must be a run of a least "minTexty" printable ASCII bytes.
+     * 
+     * @param input Byte vector to parse and split
+     * @param minTexty The minimal size of the first chunk of ASCII bytes.
+     * @param out Out vector for Data chunks
+     */
     static bool parseBytes(
         const vector<Byte>& input, 
         size_t minTexty, 
         vector<Data>& out
     ) {
-        // Splits input into Data chunks
-        // The first chunk must be a run of a least "minTexty" printable ASCII bytes
 
         size_t pos = 0;
         size_t start = pos;
@@ -356,14 +440,8 @@ private:
 
 void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    /* Mutate a single "chunk" of continuous printable ASCII by:
-     * inserting a random combination of 1-19 "silly strings" at a random index,
-     * replacing everything after a random index with a random combination of 1-19 "silly strings",
-     * or appending between 0 and 65,536 newlines
-     */
 
     const size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -393,13 +471,6 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     vector<uint8_t> data(originalBuffer, originalBuffer + originalSize);
 
     optional<Ascii> parsedAscii = Ascii::parse(data);
@@ -413,8 +484,20 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
     parsedAscii->mutate(this->rand, m_maxNewlineInsertions);
     vector<Byte> mutatedBytes = parsedAscii->unlex();
 
+    if (mutatedBytes.size() > m_maxAsciiOutputBytes)
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+
     const size_t newBufferSize{mutatedBytes.size() + 1}; // +1 to implicitly append a null terminator
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    if (newBufferSize > INT_MAX) {
+        //Check to see if the newBufferSize excedes the maximum size.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
+
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, mutatedBytes.data(), mutatedBytes.size());
 }

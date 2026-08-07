@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -26,8 +28,12 @@
 namespace vmf
 {
 /**
- *
- */
+ * @brief This mutator takes a single "chunk" of continuous printable ASCII by:
+* inserting a random combination of 1-19 "silly strings" at a random index,
+* replacing everything after a random index with a random combination of 1-19 "silly strings",
+* or appending between 0 and 65,536 newlines. The number of newlines inserted by mutateTextData
+* may be bounded via the configuation file.
+*/
 class RadamsaAsciiBadMutator: public MutatorModule, public RadamsaByteMutatorBase
 {
     public:
@@ -41,9 +47,10 @@ class RadamsaAsciiBadMutator: public MutatorModule, public RadamsaByteMutatorBas
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
     private:
-        VmfRand* rand = VmfRand::getInstance();
+        VmfRand* rand;
 
-        // Per-call upper bound on the number of newlines inserted by the `mutateTextData` newline-flood case. Default 65536. Set the `maxNewlineInsertions` config key to override; 0 disables the cap.
-        size_t m_maxNewlineInsertions{65536u};
+        size_t m_maxNewlineInsertions{4096u};
+
+        size_t m_maxAsciiOutputBytes{1u << 20};
 };
 }
