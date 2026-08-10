@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -19,31 +21,40 @@
 #pragma once
 
 #include "RadamsaMutatorBase.hpp"
-#include <set>
+#include <algorithm>
 #include <optional>
 
 using std::vector;
 using std::isdigit;
 using std::pair;
-using std::set;
 using std::optional;
 using std::nullopt;
 using std::move;
 
 namespace vmf
 {
-/**
- *
+/** 
+ * @brief Base class for all Radamsa Byte Mutators.
  */
 class RadamsaByteMutatorBase: public RadamsaMutatorBase
 {
 public:
+    /** 
+    * @struct NumInfo 
+    *
+    * @brief This structure contains the state of an array of numbers translated from an array of text.
+    */
     struct NumInfo {
-        unsigned int value = 0;
-        size_t offset = 0;
-        size_t length = 0;
+        unsigned int value = 0; /**<The value of the data*/
+        size_t offset = 0; /**<The index of the data */
+        size_t length = 0; /**<the size of the data*/
     };
 
+    /**
+    * @brief Generates a random amount of repetitions to be performed. Upper limit is 20000;
+    * 
+    * @param rand Pointer to the random generator instance
+    */
     static size_t GetRandomRepetitionLength(VmfRand* rand) noexcept
     {
         constexpr size_t MINIMUM_UPPER_LIMIT{0x2u};
@@ -63,32 +74,38 @@ public:
 
         return rand->randBetween(0ul, static_cast<unsigned long>(randomUpperLimit)) + 1u; // We add one to the return value in order to account for the case where the random upper value is zero.
     }
-
+    /**
+     * @brief Encodes 21-bit character code points into UTF-8 values of 1 to 4 bytes
+     * 
+     * @param cp Character code to transform into UTF-8 values
+     */
     vector<uint8_t> encodeUtf8(char32_t cp) {
-        // encodes 21-bit character code points into UTF-8 values of 1 to 4 bytes
 
         vector<uint8_t> result;
         if (cp <= 0x7F) {           // 1B case
-            result.push_back(cp);       
+            result.push_back(static_cast<uint8_t>(cp & 0xFF));       
         } 
         else if (cp <= 0x7FF) {     // 2B case
-            result.push_back(0xC0 | (cp >> 6));     // 110xxxxx, top 5b
-            result.push_back(0x80 | (cp & 0x3F));   // 10xxxxxx, bottom 6b
+            result.push_back(static_cast<uint8_t>(0xC0 | (cp >> 6)));     // 110xxxxx, top 5b
+            result.push_back(static_cast<uint8_t>(0x80 | (cp & 0x3F)));   // 10xxxxxx, bottom 6b
         } else if (cp <= 0xFFFF) {  // 3B case
-            result.push_back(0xE0 | (cp >> 12));            // 1110xxxx, top 4b
-            result.push_back(0x80 | ((cp >> 6) & 0x3F));    // 10xxxxxx, next 6b
-            result.push_back(0x80 | (cp & 0x3F));
+            result.push_back(static_cast<uint8_t>(0xE0 | (cp >> 12)));            // 1110xxxx, top 4b
+            result.push_back(static_cast<uint8_t>(0x80 | ((cp >> 6) & 0x3F)));    // 10xxxxxx, next 6b
+            result.push_back(static_cast<uint8_t>(0x80 | (cp & 0x3F)));
         } else {                    // 4B case
-            result.push_back(0xF0 | (cp >> 18));            // 11110xxx, top 3b
-            result.push_back(0x80 | ((cp >> 12) & 0x3F));   // 10xxxxxx, next 6b
-            result.push_back(0x80 | ((cp >> 6) & 0x3F));
-            result.push_back(0x80 | (cp & 0x3F));
+            result.push_back(static_cast<uint8_t>(0xF0 | (cp >> 18)));            // 11110xxx, top 3b
+            result.push_back(static_cast<uint8_t>(0x80 | ((cp >> 12) & 0x3F)));   // 10xxxxxx, next 6b
+            result.push_back(static_cast<uint8_t>(0x80 | ((cp >> 6) & 0x3F)));
+            result.push_back(static_cast<uint8_t>(0x80 | (cp & 0x3F)));
         }
         return result;
     }
-
+    /**
+     * @brief Converts and extracts ASCII numbers given a vector of bytes.
+     * 
+     * @param data Data vector to parse though
+     */
     vector<NumInfo> extractTextualNumbers(const vector<uint8_t>& data) {
-        // Converts and extracts ASCII numbers given a vector of bytes
 
         vector<NumInfo> result;
         size_t i = 0;
@@ -105,10 +122,10 @@ public:
                     }
                     // else: too large for ui, skip
                 } 
-                catch(const std::invalid_argument& e) {
+                catch([[maybe_unused]]const std::invalid_argument& e) {
                     // invalid number, skip
                 }   
-                catch(const std::out_of_range& e) {
+                catch([[maybe_unused]]const std::out_of_range& e) {
                     // too large for ull, skip
                 }
             }
@@ -117,7 +134,9 @@ public:
 
         return result;
     }
-
+    /**
+     * @brief Generates a vector of "interesting" numbers i.e. values that one off from maxes or minimums.
+     */
     vector<unsigned int> generateInterestingNumbers() {
         vector<unsigned int> result;
         vector<unsigned int> shifts = {1, 7, 8, 15, 16, 31};    // truncating from original rust, as unsigned ints are only 32b
@@ -131,149 +150,73 @@ public:
 
         return result;
     }
-
+    /**
+     * @brief Suffix view used by the fuse helpers so we do not materialize every suffix as a separate vector.
+     */
     template<typename T>
-    pair<vector<vector<T>>, vector<vector<T>>> getAlternateSuffixes(
-        const vector<T>& theList, 
+    struct SuffixView {
+        const vector<T>* source{nullptr};
+        size_t start{0u};
+
+        size_t size() const noexcept {
+            return (source == nullptr || start >= source->size()) ? 0u : source->size() - start;
+        }
+
+        typename vector<T>::const_iterator begin() const {
+            return source->begin() + static_cast<typename vector<T>::difference_type>(start);
+        }
+
+        typename vector<T>::const_iterator end() const {
+            return source->end();
+        }
+
+        bool empty() const noexcept {
+            return size() == 0u;
+        }
+    };
+
+    /**
+     * @brief Picks one random suffix position from each vector and returns lightweight views into them.
+     * This keeps the fuse helper O(1) on the search side and only pays for the final output copy.
+     * 
+     * @param a First vector to look though
+     * @param b Second vector to look though
+     * @param rand Pointer to the random generator instance
+     */
+    template<typename T>
+    pair<SuffixView<T>, SuffixView<T>> findJumpPoints(
+        const vector<T>& a,
+        const vector<T>& b,
         VmfRand* rand
     ) {
-        // getSuffixes, but randomize which output list gets each suffix
-        // NOTE: Very likely to return an empty pair for small buffer sizes
+        if (a.empty() || b.empty()) return {SuffixView<T>{}, SuffixView<T>{}};
 
-        vector<vector<T>> listA, listB;
-        vector<T> subListA, subListB;
-        for (size_t i = 0; i < theList.size(); ++i) {
-            if (rand->randBetween(0, 1) == 0) {
-                subListA.assign(theList.begin() + i, theList.end());
-                if(!subListB.empty()) {
-                    listB.push_back(move(subListB));
-                    subListB.clear();
-                }
-            } else {
-                subListB.assign(theList.begin() + i, theList.end());
-                if(!subListA.empty()) {
-                    listA.push_back(move(subListA));
-                    subListA.clear();
-                }
-            }
-        }
-        return {listA, listB};
+        const size_t aStart = static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(a.size() - 1)));
+        const size_t bStart = static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(b.size() - 1)));
+        return {SuffixView<T>{&a, aStart}, SuffixView<T>{&b, bStart}};
     }
 
-    template<typename T>
-    vector<vector<T>> getSuffixes(const vector<T>& theList) {
-        // Grabs all possible slices that end at theList's end
-
-        vector<vector<T>> result;
-        for(size_t i = 0; i < theList.size(); ++i) {
-            result.push_back(vector<T>(theList.begin() + i, theList.end()));
-        }
-        return result;
-    }
-
-    template<typename T>
-    pair<vector<vector<T>>, vector<vector<T>>> getInitialSuffixes(
-        const vector<T>& a, 
-        const vector<T>& b, 
-        VmfRand* rand
-    ) {
-        if (a == b) return getAlternateSuffixes(a, rand);
-        return {getSuffixes(a), getSuffixes(b)};
-    }
-
-    template<typename T>
-    optional<pair<vector<T>, vector<T>>> getAnyPositionPair(
-        vector<vector<T>>& a, 
-        vector<vector<T>>& b, 
-        VmfRand* rand
-    ) {
-        if (a.empty() || b.empty()) return nullopt;
-
-        size_t aIndex = rand->randBetween(0, int(a.size() - 1)); // -1 because randBetween is max inclusive
-        size_t bIndex = rand->randBetween(0, int(b.size() - 1));
-        vector<T> aElem = a[aIndex];
-        vector<T> bElem = b[bIndex];
-        return pair<vector<T>, vector<T>>(aElem, bElem);
-    }
-
-    template<typename T>
-    pair<vector<vector<T>>, vector<vector<T>>> splitPrefixes(
-        vector<vector<T>>& prefixes, 
-        vector<vector<T>>& suffixes
-    ) {
-        set<T> used;
-        set<vector<T>> hashSuffix;
-        vector<vector<T>> newPrefixes;
-        for (vector<T> prefix : prefixes) {
-            if(!prefix.empty() && used.find(prefix[0]) == used.end()) { // if first char of this prefix hasn't been seen yet...
-                used.insert(prefix[0]);
-                newPrefixes.push_back(prefix);
-                suffixes.erase( // erase-remove idiom. moves all suffixes shorter than prefix to hashSuffix
-                    std::remove_if( // shifts matching elements to the end
-                        suffixes.begin(), 
-                        suffixes.end(), 
-                        [&](const vector<T>& suffix) {
-                            if (suffix.size() < prefix.size()) {
-                                hashSuffix.insert(suffix);  // stores them in hashSuffix prior to removal from suffixes
-                                return true;
-                            }
-                            return false;
-                        }
-                    ),
-                    suffixes.end()  // marks matching elements for erasure
-                );
-            }
-        }
-        return {
-            newPrefixes, 
-            vector<vector<T>>(hashSuffix.begin(), hashSuffix.end()) // convert set of slices to vector of slices
-        };
-    }
-
-    template<typename T>
-    pair<vector<T>, vector<T>> findJumpPoints(
-        const vector<T>& a, 
-        const vector<T>& b, 
-        VmfRand* rand
-    ) {
-        // NOTE: Very likely to return a and b unmodified for small buffer sizes if a==b
-
-        int fuel = 100000;
-        const int searchStopIp = 8;
-
-        auto [listA, listB] = getInitialSuffixes(a, b, rand);
-        if (listA.empty() || listB.empty()) return {a, b};
-
-        while (true) {
-            if (fuel < 0 || rand->randBetween(0, searchStopIp) == 0) {
-                if (auto result = getAnyPositionPair(listA, listB, rand)) return *result;
-                return {a, b};
-            } else {
-                auto [nodeA, nodeB] = splitPrefixes(listA, listB);
-                if (nodeA.empty() || nodeB.empty()) {
-                    if (auto result = getAnyPositionPair(listA, listB, rand)) return *result;
-                    return {a, b};
-                } else {
-                    listA = nodeA;
-                    listB = nodeB;
-                    fuel -= static_cast<int>(listA.size() + listB.size());
-                }
-            }
-        }
-    }
-
+    /**
+     * @brief Combines a prefix substring from "a" and a suffix substring from "b".
+     * Very likely to return input unmodified for small buffer sizes if a==b.
+     * 
+     * @param a First vector to look though
+     * @param b Second vector to look though
+     * @param rand Pointer to the random generator instance
+     */
     template<typename T>
     vector<T> fuse(const vector<T>& a, const vector<T>& b, VmfRand* rand) {
-        // Combines a prefix substring from "a" and a suffix substring from "b"
-        // NOTE: Very likely to return input unmodified for small buffer sizes if a==b
 
         if (a.empty() || b.empty()) return a;
 
         auto [from, to] = findJumpPoints(a, b, rand);
-        
+        if (from.source == nullptr || to.source == nullptr) return a;
+
         if (std::equal(from.begin(), from.end(), a.end() - from.size())) {
-            vector<T> result(a.begin(), a.end() - from.size()); // keep prefix
-            result.insert(result.end(), to.begin(), to.end());  // append suffix
+            vector<T> result;
+            result.reserve(a.size() - from.size() + to.size());
+            result.insert(result.end(), a.begin(), a.end() - from.size()); // keep prefix
+            result.insert(result.end(), to.begin(), to.end());            // append suffix
             return result;
         }
         return a;
