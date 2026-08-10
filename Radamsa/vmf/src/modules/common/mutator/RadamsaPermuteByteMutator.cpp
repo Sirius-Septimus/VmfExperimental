@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaPermuteByteMutator::build(std::string name)
  */
 void RadamsaPermuteByteMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaPermuteByteMutator::init(ConfigInterface& config)
  */
 RadamsaPermuteByteMutator::RadamsaPermuteByteMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+
 }
 
 /**
@@ -80,10 +82,7 @@ void RadamsaPermuteByteMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaPermuteByteMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Consume the original buffer by rearranging a random number of bytes and appending a null-terminator to the end.
-
     constexpr size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -112,16 +111,9 @@ void RadamsaPermuteByteMutator::mutateTestCase(StorageModule& storage, StorageEn
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
+    // The new buffer size matches the original buffer length.
 
-    // The new buffer size will contain one additional element since we are appending a null-terminator to the end.
-
-    const size_t newBufferSize{originalSize + 1u};
+    const size_t newBufferSize{originalSize};
 
     // Allocate the new buffer, set it's elements to those of the original buffer, and append a null-terminator to the end.
 
@@ -132,18 +124,18 @@ void RadamsaPermuteByteMutator::mutateTestCase(StorageModule& storage, StorageEn
     // Copy data from the original buffer into the new buffer, but swap random bytes.
     // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.
 
-    for (size_t sourceIndex{minimumSeedIndex}; sourceIndex < originalSize; ++sourceIndex)
+    for (size_t sourceIndex{0u}; sourceIndex < originalSize; ++sourceIndex)
     {
         // Select a random index and swap the two bytes.
 
         const unsigned long lower{0ul};
         const size_t upper{originalSize - 1u};
-        const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize - minimumSeedIndex)};
+        const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
         const size_t randomIndexToSwap{
                                     std::clamp(
                                             static_cast<size_t>(rand->randBetween(
                                                 lower,
-                                                maximumRandomIndexValue)) + minimumSeedIndex,
+                                                maximumRandomIndexValue)),
                                             static_cast<size_t>(lower),
                                             upper
                                     )

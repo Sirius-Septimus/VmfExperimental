@@ -143,7 +143,7 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
         numberOfRepetitions = (maxRepetitions > 0u) ? maxRepetitions : 1u;
     }
 
-    // Output layout: prefix [0, start_index) + numberOfRepetitions sequence copies + suffix [end_index + 1, originalSize) + null terminator.
+    // Output layout: prefix [0, start_index) + numberOfRepetitions sequence copies + suffix [end_index + 1, originalSize).
     const size_t maxTotalSize{std::numeric_limits<size_t>::max() - 1u};
     if (originalSize > maxTotalSize)
     {
@@ -156,7 +156,7 @@ void RadamsaRepeatByteSequenceMutator::mutateTestCase(StorageModule& storage, St
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
-    const size_t newBufferSize{originalSize + (seq_len * numberOfRepetitions) + 1u};
+    const size_t newBufferSize{originalSize + (seq_len * numberOfRepetitions)};
 
     if (newBufferSize > static_cast<size_t>(INT_MAX))
     {

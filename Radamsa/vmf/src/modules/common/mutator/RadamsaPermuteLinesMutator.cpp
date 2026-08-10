@@ -130,7 +130,7 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
         std::swap(lineOrder[i], lineOrder[randIndex]);
     }
 
-    const size_t newBufferSize{GetAllLineDataSize(lines) + 1u};
+    const size_t newBufferSize{GetAllLineDataSize(lines)};
     if (newBufferSize > static_cast<size_t>(INT_MAX))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);

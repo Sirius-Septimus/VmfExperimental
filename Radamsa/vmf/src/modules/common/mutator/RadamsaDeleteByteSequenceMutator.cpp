@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaDeleteByteSequenceMutator::build(std::string name)
  */
 void RadamsaDeleteByteSequenceMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaDeleteByteSequenceMutator::init(ConfigInterface& config)
  */
 RadamsaDeleteByteSequenceMutator::RadamsaDeleteByteSequenceMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+
 }
 
 /**
@@ -83,7 +85,6 @@ void RadamsaDeleteByteSequenceMutator::mutateTestCase(StorageModule& storage, St
     // select a random number of consecutive bytes and remove them
 
     constexpr size_t minimumSize{2u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -113,12 +114,6 @@ void RadamsaDeleteByteSequenceMutator::mutateTestCase(StorageModule& storage, St
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
 
     // Select random indexes for the start and end of the sequence
     const unsigned long start_lower{0ul};
@@ -130,7 +125,7 @@ void RadamsaDeleteByteSequenceMutator::mutateTestCase(StorageModule& storage, St
     const size_t end_index{static_cast<size_t>(rand->randBetween(end_lower, end_upper))};
 
     // Calculate the size of the modified buffer
-    const size_t newBufferSize{originalSize - (end_index - start_index + 1u) + 1u};  // +1 because we're appending a null-terminator
+    const size_t newBufferSize{originalSize - (end_index - start_index + 1u)};
 
     // Allocate the new buffer and set it's elements to zero.
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};

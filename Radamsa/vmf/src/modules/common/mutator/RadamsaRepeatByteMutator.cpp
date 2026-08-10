@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -55,6 +57,8 @@ void RadamsaRepeatByteMutator::init(ConfigInterface& config)
     m_maxByteRepetitions = (configured == 0)
         ? std::numeric_limits<size_t>::max()
         : static_cast<size_t>(configured);
+
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -64,7 +68,7 @@ void RadamsaRepeatByteMutator::init(ConfigInterface& config)
  */
 RadamsaRepeatByteMutator::RadamsaRepeatByteMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -92,7 +96,6 @@ void RadamsaRepeatByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
     // Consume the original buffer by repeating a byte a random number of times and appending a null-terminator to the end.
 
     constexpr size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -121,15 +124,7 @@ void RadamsaRepeatByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     // The new buffer size will contain a random number of additional elements since we are repeating a random byte.
-    // Furthermore, it will contain one more element since we are appending a null-terminator to the end.
 
     /*
      *	Clamp numberOfRandomByteRepetitions against the configurable budget so the per-call growth (up to ~128 KiB without the cap) stays bounded under GA-feedback iteration.
@@ -141,7 +136,7 @@ void RadamsaRepeatByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
     {
         numberOfRandomByteRepetitions = m_maxByteRepetitions;
     }
-    const size_t newBufferSize{originalSize + numberOfRandomByteRepetitions + 1u};
+    const size_t newBufferSize{originalSize + numberOfRandomByteRepetitions};
 
     // Allocate the new buffer and set it's elements to zero.
 
@@ -152,12 +147,12 @@ void RadamsaRepeatByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     const unsigned long lower{0ul};
     const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize - minimumSeedIndex)};
+    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
     const size_t randomByteRepetitionIndex{
                                     std::clamp(
                                         static_cast<size_t>(rand->randBetween(
                                             lower,
-                                            maximumRandomIndexValue)) + minimumSeedIndex,
+                                            maximumRandomIndexValue)),
                                         static_cast<size_t>(lower),
                                         upper
                                     )

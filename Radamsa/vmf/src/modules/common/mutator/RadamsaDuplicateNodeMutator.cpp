@@ -167,7 +167,7 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
     tr.duplicateNode(nodeToDuplicate, nodeToDuplicate->parent);
 
     // Reject oversized output before serializing the tree back into a string.
-    const size_t estimatedOutputSize{tr.estimateSerializedSize(tr.root) + 1u};
+    const size_t estimatedOutputSize{tr.estimateSerializedSize(tr.root)};
     if (estimatedOutputSize > m_maxDuplicateNodeOutputBytes || estimatedOutputSize > static_cast<size_t>(INT_MAX))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
@@ -175,7 +175,7 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
     }
 
     const string modTreeStr = tr.toString(tr.root);
-    const size_t newBufferSize{modTreeStr.length() + 1}; // +1 to implicitly append a null terminator
+    const size_t newBufferSize{modTreeStr.length()};
     if (newBufferSize > INT_MAX) {
         //Check to see if the newBufferSize excedes the maximum size.
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
@@ -184,5 +184,5 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
 
-    std::strcpy(newBuffer, modTreeStr.c_str());
+    memcpy(newBuffer, modTreeStr.data(), newBufferSize);
 }

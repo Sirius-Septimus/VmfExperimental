@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -46,7 +48,7 @@ Module* RadamsaModifyTextNumberMutator::build(std::string name)
  */
 void RadamsaModifyTextNumberMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -56,7 +58,7 @@ void RadamsaModifyTextNumberMutator::init(ConfigInterface& config)
  */
 RadamsaModifyTextNumberMutator::RadamsaModifyTextNumberMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -84,7 +86,6 @@ void RadamsaModifyTextNumberMutator::mutateTestCase(StorageModule& storage, Stor
     // Mutate a random ASCII number via a randomly selected numerical mutation
 
     const size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
     const size_t minimumNumbers{1u};
     size_t originalSize;
     char* originalBuffer;
@@ -109,13 +110,6 @@ void RadamsaModifyTextNumberMutator::mutateTestCase(StorageModule& storage, Stor
 
     // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
@@ -189,8 +183,14 @@ void RadamsaModifyTextNumberMutator::mutateTestCase(StorageModule& storage, Stor
         data.end()
     );
 
-    const size_t newBufferSize{new_data.size() + 1}; // +1 to implicitly append a null terminator
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    const size_t newBufferSize{new_data.size()};
+    if (newBufferSize > INT_MAX) {
+        //Check to see if the newBufferSize excedes the maximum size.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
+    
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, new_data.data(), new_data.size());
 }

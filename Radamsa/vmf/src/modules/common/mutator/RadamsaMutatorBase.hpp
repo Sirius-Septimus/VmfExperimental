@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -21,13 +23,23 @@
 #include <random>
 #include <algorithm>
 #include <iostream>
+#include <climits>
 #include "VmfRand.hpp"
 
 namespace vmf
 {
+/**
+ * @brief Base class for all Radamsa Mutators.
+ */
 class RadamsaMutatorBase
 {
 public:
+
+/**
+ * @brief Generates a random amount of repetitions to be performed. Upper limit is 20000;
+ * 
+ * @param rand Pointer the random generator instance
+ */
 size_t GetRandomRepetitionLength(VmfRand* rand) noexcept
 {
     constexpr size_t MINIMUM_UPPER_LIMIT{0x2u};
@@ -48,10 +60,17 @@ size_t GetRandomRepetitionLength(VmfRand* rand) noexcept
     return rand->randBetween(0ul, static_cast<unsigned long>(randomUpperLimit)) + 1u; // We add one to the return value in order to account for the case where the random upper value is zero.
 }
 
+/**
+ * @brief Copies an entry to a new entry using the same testCaseKey. The entry remains unchanged.
+ * 
+ * @param baseEntry Entry to copy from
+ * @param newEntry Entry to copy to
+ * @param testCaseKey Testcase key to be used for the new entry
+ */
 void CopyBufferAsIs(StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
     char* originalBuffer = baseEntry->getBufferPointer(testCaseKey);
-    size_t originalSize = baseEntry->getBufferSize(testCaseKey);
+    int originalSize = baseEntry->getBufferSize(testCaseKey);
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, originalSize)};
     memcpy(newBuffer, originalBuffer, originalSize);
     return;

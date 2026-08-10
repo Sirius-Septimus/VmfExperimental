@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -26,7 +28,7 @@
 namespace vmf
 {
 /**
- *
+ * @brief This mutator moves a random line to a random index in the line ordering.
  */
 class RadamsaReplaceLineMutator: public MutatorModule, public RadamsaLineMutatorBase
 {
@@ -41,6 +43,6 @@ class RadamsaReplaceLineMutator: public MutatorModule, public RadamsaLineMutator
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
     private:
-        VmfRand* rand = VmfRand::getInstance();
+        VmfRand* rand;
 };
 }

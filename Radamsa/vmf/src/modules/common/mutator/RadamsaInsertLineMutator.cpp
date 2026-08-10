@@ -127,7 +127,7 @@ void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     const size_t newLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines)));
     lineOrder.insert(lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(newLineIndex), originalLineIndex);
 
-    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder)};
     if (newBufferSize > static_cast<size_t>(INT_MAX))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);

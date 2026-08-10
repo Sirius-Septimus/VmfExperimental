@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaInsertUnicodeMutator::build(std::string name)
  */
 void RadamsaInsertUnicodeMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,9 +57,7 @@ void RadamsaInsertUnicodeMutator::init(ConfigInterface& config)
  */
 RadamsaInsertUnicodeMutator::RadamsaInsertUnicodeMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
-
-    // these values copied from github.com/microsoft/rusty-radamsa/blob/main/src/mutations.rs#L677
+    // Values obtained from github.com/microsoft/rusty-radamsa/blob/main/src/mutations.rs#L677
     this->funnyUnicode.push_back(this->encodeUtf8(U'\u202E'));     // Right to Left Override
     this->funnyUnicode.push_back(this->encodeUtf8(U'\u202D'));     // Left to Right Override
     this->funnyUnicode.push_back(this->encodeUtf8(U'\u180E'));     // Mongolian Vowel Separator
@@ -82,8 +82,8 @@ RadamsaInsertUnicodeMutator::RadamsaInsertUnicodeMutator(std::string name) : Mut
     this->funnyUnicode.push_back({0xef, 0xbb, 0xbf});               // the canonical utf8 bom
     this->funnyUnicode.push_back({0xfe, 0xff});                     // utf16 be bom
     this->funnyUnicode.push_back({0xff, 0xfe});                     // utf16 le bom
-    this->funnyUnicode.push_back({0, 0, 0xff, 0xff});               // ascii null be
-    this->funnyUnicode.push_back({0xff, 0xff, 0, 0});               // ascii null le
+    this->funnyUnicode.push_back({0, 0, 0xff, 0xff});               // ASCII null be
+    this->funnyUnicode.push_back({0xff, 0xff, 0, 0});               // ASCII null le
     this->funnyUnicode.push_back({43, 47, 118, 56});                // and some others from wikipedia
     this->funnyUnicode.push_back({43, 47, 118, 57});
     this->funnyUnicode.push_back({43, 47, 118, 43});
@@ -118,15 +118,9 @@ void RadamsaInsertUnicodeMutator::registerStorageNeeds(StorageRegistry& registry
 
 void RadamsaInsertUnicodeMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Insert a "funny" unicode sequence into a random index
-
-    /*
-     *	minimumSize is 1: a zero-byte input would underflow `data.size() - 1` to SIZE_MAX and produce undefined behaviour at the subsequent `data.insert(data.begin() + insert_index, ...)` call. Inputs below the floor return via CopyBufferAsIs.
-     */
 
     // Minimum input size accepted by this mutator (in bytes).
     const size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -155,13 +149,6 @@ void RadamsaInsertUnicodeMutator::mutateTestCase(StorageModule& storage, Storage
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (originalSize > 0 && minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     std::vector<uint8_t> data(originalBuffer, originalBuffer + originalSize);
 
     const unsigned long lower{0ul};
@@ -177,8 +164,14 @@ void RadamsaInsertUnicodeMutator::mutateTestCase(StorageModule& storage, Storage
         toInsert.rend()
     );
     
-    const size_t newBufferSize{data.size() + 1}; // +1 to implicitly append a null terminator
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    const size_t newBufferSize{data.size()};
+    if (newBufferSize > INT_MAX) {
+        //Check to see if the newBufferSize excedes the maximum size.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
+
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, data.data(), data.size());
 

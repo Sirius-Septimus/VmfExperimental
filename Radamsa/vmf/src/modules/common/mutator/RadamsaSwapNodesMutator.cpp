@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaSwapNodesMutator::build(std::string name)
  */
 void RadamsaSwapNodesMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaSwapNodesMutator::init(ConfigInterface& config)
  */
 RadamsaSwapNodesMutator::RadamsaSwapNodesMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -80,10 +82,8 @@ void RadamsaSwapNodesMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaSwapNodesMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Swaps two random nodes pairwise
 
     const size_t minimumSize{4u};   // minimal case consists of two single-character nodes
-    const size_t minimumSeedIndex{0u};
     const size_t minimumNodes{2u};
     size_t originalSize;
     char* originalBuffer;
@@ -108,13 +108,6 @@ void RadamsaSwapNodesMutator::mutateTestCase(StorageModule& storage, StorageEntr
 
     // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
@@ -152,11 +145,15 @@ void RadamsaSwapNodesMutator::mutateTestCase(StorageModule& storage, StorageEntr
     }
     
     const string modTreeStr = tr.toString(tr.root);
-    const size_t newBufferSize{modTreeStr.length() + 1}; // +1 to implicitly append a null terminator
-
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    const size_t newBufferSize{modTreeStr.length()};
+    if (newBufferSize > INT_MAX) {
+        //Check to see if the newBufferSize excedes the maximum size.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
 
-    std::strcpy(newBuffer, modTreeStr.c_str());
+    memcpy(newBuffer, modTreeStr.data(), newBufferSize);
     return;
 }

@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaDropByteMutator::build(std::string name)
  */
 void RadamsaDropByteMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaDropByteMutator::init(ConfigInterface& config)
  */
 RadamsaDropByteMutator::RadamsaDropByteMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -83,7 +85,6 @@ void RadamsaDropByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
     // Consume the original buffer by dropping a byte and appending a null-terminator to the end.
 
     constexpr size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -112,16 +113,10 @@ void RadamsaDropByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     // The new buffer will contain one less byte, but a null-terminator will be appended to the end; therefore, the sizes will be equal.
 
-    const size_t newBufferSize{originalSize};
+    //Buffer will never grow past sizeof(int) because it is returned from getBufferSize()
+    const int newBufferSize{static_cast<int>(originalSize)}; 
 
     // Allocate the new buffer and set it's elements to zero.
 
@@ -132,12 +127,12 @@ void RadamsaDropByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
 
     const unsigned long lower{0ul};
     const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize - minimumSeedIndex)};
+    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
     const size_t randomIndexToDrop{
                             std::clamp(
                                     static_cast<size_t>(rand->randBetween(
                                                         lower,
-                                                        maximumRandomIndexValue)) + minimumSeedIndex,
+                                                        maximumRandomIndexValue)),
                                                         static_cast<size_t>(lower),
                                                         upper)};
 

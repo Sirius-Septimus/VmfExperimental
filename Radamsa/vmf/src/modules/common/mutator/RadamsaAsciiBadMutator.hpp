@@ -49,6 +49,7 @@ class RadamsaAsciiBadMutator: public MutatorModule, public RadamsaByteMutatorBas
     private:
         VmfRand* rand;
 
+        // Per-call upper bound on the number of newlines inserted by the `mutateTextData` newline-flood case. Default 4096. Set the `maxNewlineInsertions` config key to override; 0 disables the cap.
         size_t m_maxNewlineInsertions{4096u};
 
         size_t m_maxAsciiOutputBytes{1u << 20};

@@ -130,7 +130,7 @@ void RadamsaDeleteSequentialLinesMutator::mutateTestCase(StorageModule& storage,
         lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(randomLineIndexEnd + 1u)
     );
 
-    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder)};
     if (newBufferSize > static_cast<size_t>(INT_MAX))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);

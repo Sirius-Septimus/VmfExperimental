@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaDeleteNodeMutator::build(std::string name)
  */
 void RadamsaDeleteNodeMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaDeleteNodeMutator::init(ConfigInterface& config)
  */
 RadamsaDeleteNodeMutator::RadamsaDeleteNodeMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -83,7 +85,6 @@ void RadamsaDeleteNodeMutator::mutateTestCase(StorageModule& storage, StorageEnt
     // Delete a random node from the tree without preserving its children
 
     const size_t minimumSize{1};   // minimal case consists of a single-character root node
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -112,13 +113,6 @@ void RadamsaDeleteNodeMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     const std::string treeStr(originalBuffer, originalSize);
     /*
      *	Build the tree via the noexcept tryBuild factory; fall back to CopyBufferAsIs when the input does not parse as a tree.
@@ -142,10 +136,10 @@ void RadamsaDeleteNodeMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     string modTreeStr = tr.toString(tr.root);
 
-    const size_t newBufferSize{modTreeStr.length() + 1}; // +1 to implicitly append a null terminator
+    const size_t newBufferSize{modTreeStr.length()};
 
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
 
-    std::strcpy(newBuffer, modTreeStr.c_str());
+    memcpy(newBuffer, modTreeStr.data(), newBufferSize);
 }

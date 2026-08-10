@@ -125,7 +125,7 @@ void RadamsaReplaceLineMutator::mutateTestCase(StorageModule& storage, StorageEn
     const size_t destinationLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
     lineOrder[destinationLineIndex] = sourceLineIndex;
 
-    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder)};
     if (newBufferSize > static_cast<size_t>(INT_MAX))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);

@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaInsertByteMutator::build(std::string name)
  */
 void RadamsaInsertByteMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaInsertByteMutator::init(ConfigInterface& config)
  */
 RadamsaInsertByteMutator::RadamsaInsertByteMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+    
 }
 
 /**
@@ -83,7 +85,6 @@ void RadamsaInsertByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
     // Consume the original buffer by inserting a byte and appending a null-terminator to the end.
 
     constexpr size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -112,16 +113,9 @@ void RadamsaInsertByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
+    // The new buffer size will contain one additional element since we are inserting a random byte.
 
-    // The new buffer size will contain two additional elements since we are inserting a random byte and appending a null-terminator to the end.
-
-    const size_t newBufferSize{originalSize + 2u};
+    const size_t newBufferSize{originalSize + 1u};
 
     // Allocate the new buffer and set it's elements to zero.
 
@@ -132,13 +126,13 @@ void RadamsaInsertByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     const unsigned long lower{0ul};
     const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize - minimumSeedIndex)};
+    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
     const size_t randomInsertionIndex{
                                 std::clamp(
                                     static_cast<size_t>(rand->randBetween(
                                         lower,
                                         maximumRandomIndexValue
-                                    )) + minimumSeedIndex,
+                                    )),
                                     static_cast<size_t>(lower),
                                     upper
                                 )

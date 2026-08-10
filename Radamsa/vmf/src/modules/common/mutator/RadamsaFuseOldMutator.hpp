@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -26,7 +28,7 @@
 namespace vmf
 {
 /**
- *
+ * @brief This mutator combines two random combonations from each side of the buffer.
  */
 class RadamsaFuseOldMutator: public MutatorModule, public RadamsaByteMutatorBase
 {
@@ -41,7 +43,7 @@ class RadamsaFuseOldMutator: public MutatorModule, public RadamsaByteMutatorBase
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
     private:
-        VmfRand* rand = VmfRand::getInstance();
+        VmfRand* rand;
 
         // Per-call upper bound on fuse input size. Default 4096. Set the `maxFuseInputSize` config key to override; 0 disables the cap.
         size_t m_maxFuseInputSize{4096u};

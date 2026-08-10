@@ -125,7 +125,7 @@ void RadamsaCopyLineCloseByMutator::mutateTestCase(StorageModule& storage, Stora
     const size_t randomLineIndexDestination{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines)))};
     lineOrder.insert(lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(randomLineIndexDestination), randomLineIndexSource);
 
-    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder)};
     if (newBufferSize > static_cast<size_t>(INT_MAX))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);

@@ -490,7 +490,7 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
         return;
     }
 
-    const size_t newBufferSize{mutatedBytes.size() + 1}; // +1 to implicitly append a null terminator
+    const size_t newBufferSize{mutatedBytes.size()};
     if (newBufferSize > INT_MAX) {
         //Check to see if the newBufferSize excedes the maximum size.
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);

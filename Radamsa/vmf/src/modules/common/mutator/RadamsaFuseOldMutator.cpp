@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -53,6 +55,8 @@ void RadamsaFuseOldMutator::init(ConfigInterface& config)
     m_maxFuseInputSize = (configured == 0)
         ? std::numeric_limits<size_t>::max()
         : static_cast<size_t>(configured);
+
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -62,7 +66,7 @@ void RadamsaFuseOldMutator::init(ConfigInterface& config)
  */
 RadamsaFuseOldMutator::RadamsaFuseOldMutator(std::string name) : MutatorModule(name)
 {
-    // rand->randInit();
+
 }
 
 /**
@@ -90,7 +94,6 @@ void RadamsaFuseOldMutator::mutateTestCase(StorageModule& storage, StorageEntry*
     // Combine two random fusions of the two halves of the buffer
 
     const size_t minimumSize{2u};
-    const size_t minimumSeedIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -119,13 +122,6 @@ void RadamsaFuseOldMutator::mutateTestCase(StorageModule& storage, StorageEntry*
         return;
     }
 
-    // Check if minimum seed index is within valid range
-    if (minimumSeedIndex > originalSize - 1u)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     if (m_maxFuseInputSize != std::numeric_limits<size_t>::max() && originalSize > m_maxFuseInputSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
@@ -142,8 +138,14 @@ void RadamsaFuseOldMutator::mutateTestCase(StorageModule& storage, StorageEntry*
     const vector<char> b = fuse(data_firstHalf, data_secondHalf, this->rand);
     a.insert(a.end(), b.begin(), b.end());
 
-    const size_t newBufferSize{a.size() + 1}; // +1 to implicitly append a null terminator
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    const size_t newBufferSize{a.size()};
+    if (newBufferSize > INT_MAX) {
+        //Check to see if the newBufferSize excedes the maximum size.
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
+    
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, a.data(), a.size());
 }
