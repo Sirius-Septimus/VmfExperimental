@@ -82,14 +82,10 @@ void RadamsaReplaceLineMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaReplaceLineMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-   
-    const size_t minimumSize{2};   // minimal case consists of two newlines
-    const size_t minimumLines{2};
-    const size_t characterIndex{0u};
+    const size_t minimumSize{2u};   // minimal case consists of two newlines
     size_t originalSize;
     char* originalBuffer;
 
-    // Try to get buffer size and pointer, return early if buffer is not allocated
     try
     {
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
@@ -97,68 +93,47 @@ void RadamsaReplaceLineMutator::mutateTestCase(StorageModule& storage, StorageEn
     }
     catch(const RuntimeException e)
     {
-        // Buffer not allocated
         return;
     }
 
-    // Check if buffer pointer is valid (not null)
     if (originalBuffer == nullptr)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    const size_t numLines{
-                    GetNumberOfLinesAfterIndex(
-                                        originalBuffer,
-                                        originalSize,
-                                        characterIndex)};
-
-    // Check if buffer has minimum required number of lines
-    if (numLines < minimumLines) {
+    const std::vector<Line> lines{GetAllLineData(originalBuffer, originalSize)};
+    const size_t numLines{lines.size()};
+    if (numLines == 0u)
+    {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    // parse line info
     std::vector<size_t> lineOrder(numLines);
-    std::vector<Line> lines(numLines);
-    for(size_t i{0}; i < numLines; ++i) {
+    for (size_t i{0u}; i < numLines; ++i)
+    {
         lineOrder[i] = i;
-        lines[i] = GetLineData(
-                            originalBuffer,
-                            originalSize,
-                            i,
-                            numLines);
     }
 
-    const size_t original_lineIndex = static_cast<size_t>(this->rand->randBetween(static_cast<unsigned long>(characterIndex), static_cast<unsigned long>(numLines - 1)));
-    const size_t new_lineIndex = static_cast<size_t>(this->rand->randBetween(static_cast<unsigned long>(characterIndex), static_cast<unsigned long>(numLines - 2))); // extra -1 because vector size is one less after orignal is removed
+    const size_t sourceLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
+    const size_t destinationLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
+    lineOrder[destinationLineIndex] = sourceLineIndex;
 
-    // swap original with new
-    const size_t original_value = lineOrder[original_lineIndex];
-    lineOrder.erase(lineOrder.begin() + original_lineIndex);
-    lineOrder.insert(lineOrder.begin() + new_lineIndex, original_value);
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    if (newBufferSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
-    // create new buffer with modified order
-    const size_t newBufferSize{originalSize + lines[original_lineIndex].Size + 1u};  // +1 to implicitly append null terminator
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
-    for(
-        size_t i{0}, nextBufferIndex{0}; 
-        i < lineOrder.size(); 
-        nextBufferIndex += lines[lineOrder[i]].Size, ++i
-    ) {
-        memcpy(
-            newBuffer + nextBufferIndex, 
-            originalBuffer + lines[lineOrder[i]].StartIndex, 
-            lines[lineOrder[i]].Size
-        );
-    }
+    CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
+

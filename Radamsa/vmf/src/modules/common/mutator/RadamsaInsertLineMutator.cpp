@@ -82,15 +82,12 @@ void RadamsaInsertLineMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Insert a random existing line into a random place
+    // Insert a random existing line into a random place.
 
-    const size_t minimumSize{2};   // minimal case consists of two newlines
-    const size_t minimumLines{2};
-    const size_t characterIndex{0u};
+    constexpr size_t minimumSize{2u};   // minimal case consists of two newlines
     size_t originalSize;
     char* originalBuffer;
 
-    // Try to get buffer size and pointer, return early if buffer is not allocated
     try
     {
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
@@ -98,58 +95,47 @@ void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     }
     catch(const RuntimeException e)
     {
-        // Buffer not allocated
         return;
     }
-    
-    // Check if buffer pointer is valid (not null)
+
     if (originalBuffer == nullptr)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    // Cache all line ranges in one pass so we do not rescan the buffer for every line.
-    const std::vector<Line> lines{
-        GetAllLineData(originalBuffer, originalSize)
-    };
+    const std::vector<Line> lines{GetAllLineData(originalBuffer, originalSize)};
     const size_t numLines{lines.size()};
-
-    // Check if buffer has minimum required number of lines
-    if (numLines < minimumLines) {
+    if (numLines == 0u)
+    {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
     std::vector<size_t> lineOrder(numLines);
-    for(size_t i{0}; i < numLines; ++i) {
+    for (size_t i{0u}; i < numLines; ++i)
+    {
         lineOrder[i] = i;
     }
 
-    const size_t original_lineIndex = static_cast<size_t>(this->rand->randBetween(static_cast<unsigned long>(characterIndex), static_cast<unsigned long>(numLines - 1)));
-    const size_t new_lineIndex = static_cast<size_t>(this->rand->randBetween(static_cast<unsigned long>(characterIndex), static_cast<unsigned long>(numLines)));
+    const size_t originalLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
+    const size_t newLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines)));
+    lineOrder.insert(lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(newLineIndex), originalLineIndex);
 
-    lineOrder.insert(lineOrder.begin() + new_lineIndex, original_lineIndex);
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    if (newBufferSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
-    // create new buffer with modified order
-    const size_t newBufferSize{originalSize + lines[original_lineIndex].Size + 1u};  // +1 to implicitly append null terminator
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
-    for(
-        size_t i{0}, nextBufferIndex{0}; 
-        i < lineOrder.size(); 
-        nextBufferIndex += lines[lineOrder[i]].Size, ++i
-    ) {
-        memcpy(
-            newBuffer + nextBufferIndex, 
-            originalBuffer + lines[lineOrder[i]].StartIndex, 
-            lines[lineOrder[i]].Size
-        );
-    }
+    CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
+

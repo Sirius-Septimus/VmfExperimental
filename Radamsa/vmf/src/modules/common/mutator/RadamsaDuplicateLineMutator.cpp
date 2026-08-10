@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaDuplicateLineMutator::build(std::string name)
  */
 void RadamsaDuplicateLineMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaDuplicateLineMutator::init(ConfigInterface& config)
  */
 RadamsaDuplicateLineMutator::RadamsaDuplicateLineMutator(std::string name) : MutatorModule(name)
 {
-    // rand.randInit();
+    
 }
 
 /**
@@ -83,12 +85,9 @@ void RadamsaDuplicateLineMutator::mutateTestCase(StorageModule& storage, Storage
     // Consume the original buffer by duplicating a line from it and appending a null-terminator to the end.
 
     constexpr size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
-    const size_t characterIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
-    // Try to get buffer size and pointer, return early if buffer is not allocated
     try
     {
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
@@ -96,94 +95,45 @@ void RadamsaDuplicateLineMutator::mutateTestCase(StorageModule& storage, Storage
     }
     catch(const RuntimeException e)
     {
-        // Buffer not allocated
         return;
     }
 
-    // Check if buffer pointer is valid (not null)
     if (originalBuffer == nullptr)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    // Check if character index is within valid range
-    if (characterIndex > originalSize - 1u)
+    const std::vector<Line> lines{GetAllLineData(originalBuffer, originalSize)};
+    const size_t numLines{lines.size()};
+    if (numLines == 0u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    const size_t numberOfLinesAfterIndex{
-                                    GetNumberOfLinesAfterIndex(
-                                                        originalBuffer,
-                                                        originalSize,
-                                                        characterIndex)};
+    const size_t randomLineIndex{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
+    std::vector<size_t> lineOrder(numLines);
+    for (size_t i{0u}; i < numLines; ++i)
+    {
+        lineOrder[i] = i;
+    }
+    lineOrder.insert(lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(randomLineIndex + 1u), randomLineIndex);
 
-    // Select a random line to duplicate.
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    if (newBufferSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
-    constexpr unsigned long minimumRandomLineIndex{0ul};
-    const unsigned long maximumRandomLineIndex{static_cast<unsigned long>(numberOfLinesAfterIndex - 1u)};
-
-    const size_t randomLineIndex{
-                            static_cast<size_t>(rand->randBetween(
-                                            minimumRandomLineIndex,
-                                            maximumRandomLineIndex))};
-
-    const Line lineData{
-                    GetLineData(
-                            originalBuffer,
-                            originalSize,
-                            randomLineIndex,
-                            numberOfLinesAfterIndex)};
-
-    // The new buffer will be one line larger than the original buffer;
-    // additionally, it will contain one additional byte since a null-terminator will be appended to the end.
-
-    const size_t newBufferSize{originalSize + lineData.Size + 1u};
-
-    // Allocate the new buffer and set it's elements to zero.
-
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
-
-    // Copy data from the original buffer into the new buffer, but duplicate the random line.
-    // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.
-    {
-        // Copy all of the elements including the line that is to be duplicated.
-
-        const size_t numberOfBytes{lineData.StartIndex + lineData.Size};
-
-        char* destination{newBuffer};
-        const char* source{originalBuffer};
-        memcpy(destination, source, numberOfBytes);
-    }
-
-    {
-        // Duplicate the line.
-
-        const size_t numberOfBytes{lineData.Size};
-
-        char* destination{newBuffer + lineData.StartIndex + lineData.Size};
-        const char* source{originalBuffer + lineData.StartIndex};
-
-        memcpy(destination, source, numberOfBytes);
-    }
-
-    {
-        // Copy all of the elements after the line that was duplicated.
-
-        const size_t numberOfBytes{originalSize - (lineData.StartIndex + lineData.Size)};
-
-        char* destination{newBuffer + lineData.StartIndex + 2 * lineData.Size};
-        const char* source{originalBuffer + lineData.StartIndex + lineData.Size};
-
-        memcpy(destination, source, numberOfBytes);
-    }
+    CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
+

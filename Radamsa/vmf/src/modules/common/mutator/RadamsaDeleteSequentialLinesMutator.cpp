@@ -1,5 +1,7 @@
 /* =============================================================================
- * Copyright (c) 2026 Vigilant Cyber Systems
+ * Vader Modular Fuzzer (VMF)
+ * Copyright (c) 2021-2026 The Charles Stark Draper Laboratory, Inc.
+ * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 (only) as 
@@ -45,7 +47,7 @@ Module* RadamsaDeleteSequentialLinesMutator::build(std::string name)
  */
 void RadamsaDeleteSequentialLinesMutator::init(ConfigInterface& config)
 {
-
+    rand = VmfRand::getInstance();
 }
 
 /**
@@ -55,7 +57,7 @@ void RadamsaDeleteSequentialLinesMutator::init(ConfigInterface& config)
  */
 RadamsaDeleteSequentialLinesMutator::RadamsaDeleteSequentialLinesMutator(std::string name) : MutatorModule(name)
 {
-    // rand.randInit();
+    
 }
 
 /**
@@ -83,12 +85,9 @@ void RadamsaDeleteSequentialLinesMutator::mutateTestCase(StorageModule& storage,
     // Consume the original buffer by deleting sequential lines from it and appending a null-terminator to the end.
 
     constexpr size_t minimumSize{1u};
-    const size_t minimumSeedIndex{0u};
-    const size_t characterIndex{0u};
     size_t originalSize;
     char* originalBuffer;
 
-    // Try to get buffer size and pointer, return early if buffer is not allocated
     try
     {
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
@@ -96,87 +95,50 @@ void RadamsaDeleteSequentialLinesMutator::mutateTestCase(StorageModule& storage,
     }
     catch(const RuntimeException e)
     {
-        // Buffer not allocated
         return;
     }
 
-    // Check if buffer pointer is valid (not null)
     if (originalBuffer == nullptr)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    // Check if character index is within valid range
-    if (characterIndex > originalSize - 1u)
+    const std::vector<Line> lines{GetAllLineData(originalBuffer, originalSize)};
+    const size_t numLines{lines.size()};
+    if (numLines == 0u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
+    const size_t randomLineIndexStart{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
+    const size_t randomLineIndexEnd{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>((numLines - 1u) - randomLineIndexStart))) + randomLineIndexStart};
 
-    const size_t numberOfLinesAfterIndex{
-                                    GetNumberOfLinesAfterIndex(
-                                                            originalBuffer,
-                                                            originalSize,
-                                                            characterIndex)};
-
-    // Select a random line to delete.
-
-    const unsigned long minimumRandomLineOffset{0ul};
-
-    const size_t randomLineIndexStart{
-                                static_cast<size_t>(rand->randBetween(
-                                                minimumRandomLineOffset,
-                                                static_cast<unsigned long>(numberOfLinesAfterIndex - 1u)))};
-
-    const size_t randomLineIndexEnd{
-                                static_cast<size_t>(rand->randBetween(
-                                                minimumRandomLineOffset,
-                                                static_cast<unsigned long>((numberOfLinesAfterIndex - 1u) - randomLineIndexStart))) + randomLineIndexStart};
-
-    const Line startLineData{
-                        GetLineData(
-                                originalBuffer,
-                                originalSize,
-                                randomLineIndexStart,
-                                numberOfLinesAfterIndex)};
-
-    const Line endLineData{
-                        GetLineData(
-                                originalBuffer,
-                                originalSize,
-                                randomLineIndexEnd,
-                                numberOfLinesAfterIndex)};
-
-    // The new buffer will be multiple lines smaller than the original buffer;
-    // additionally, it will contain one additional byte since a null-terminator will be appended to the end.
-
-    const size_t newBufferSize{(originalSize - ((endLineData.StartIndex + endLineData.Size) - startLineData.StartIndex)) + 1u};
-
-    // Allocate the new buffer and set it's elements to zero.
-
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
-    memset(newBuffer, 0u, newBufferSize);
-
-    // Copy data from the original buffer into the new buffer, but skip the elements in the random lines that are to be deleted.
-    // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.
-
-    for(size_t sourceIndex{0u}, destinationIndex{0u}; sourceIndex < originalSize; ++sourceIndex)
+    std::vector<size_t> lineOrder(numLines);
+    for (size_t i{0u}; i < numLines; ++i)
     {
-        const size_t lineStartIndex{startLineData.StartIndex};
-        const size_t lineEndIndex{endLineData.StartIndex + endLineData.Size};
-
-        if(sourceIndex < lineStartIndex || sourceIndex >= lineEndIndex)
-        {
-            newBuffer[destinationIndex] = originalBuffer[sourceIndex];
-            ++destinationIndex;
-        }
+        lineOrder[i] = i;
     }
+    lineOrder.erase(
+        lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(randomLineIndexStart),
+        lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(randomLineIndexEnd + 1u)
+    );
+
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    if (newBufferSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
+    memset(newBuffer, 0u, newBufferSize);
+    CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
+

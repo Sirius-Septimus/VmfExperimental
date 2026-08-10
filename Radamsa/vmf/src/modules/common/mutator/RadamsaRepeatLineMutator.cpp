@@ -99,7 +99,6 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     size_t originalSize;
     char* originalBuffer;
 
-    // Try to get buffer size and pointer, return early if buffer is not allocated
     try
     {
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
@@ -107,54 +106,31 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     }
     catch(const RuntimeException e)
     {
-        // Buffer not allocated
         return;
     }
 
-    // Check if buffer pointer is valid (not null)
     if (originalBuffer == nullptr)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    //Check if the buffer size hits the shared memory maximum limit (frida)
-    if(originalSize >= (1024 * 1024))
+    const std::vector<Line> lines{GetAllLineData(originalBuffer, originalSize)};
+    const size_t numLines{lines.size()};
+    if (numLines == 0u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    const size_t numberOfLinesAfterIndex{
-                                    GetNumberOfLinesAfterIndex(
-                                                        originalBuffer,
-                                                        originalSize,
-                                                        0u)};
+    const size_t randomLineIndex{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
+    const Line lineData{lines.at(randomLineIndex)};
 
-    // Select a random line to duplicate.
-
-    constexpr unsigned long minimumRandomLineIndex{0ul};
-    const unsigned long maximumRandomLineIndex{static_cast<unsigned long>(numberOfLinesAfterIndex - 1u)};
-
-    const size_t randomLineIndex{
-                            static_cast<size_t>(rand->randBetween(
-                                            minimumRandomLineIndex,
-                                            maximumRandomLineIndex))};
-
-    const Line lineData{
-                    GetLineData(
-                            originalBuffer,
-                            originalSize,
-                            randomLineIndex,
-                            numberOfLinesAfterIndex)};
-
-    // Cap repetitions so the per-call growth `lineData.Size * numberOfRandomLineRepetitions` stays within `m_maxBufferGrowthBytes`.
     size_t numberOfRandomLineRepetitions{GetRandomRepetitionLength(this->rand)};
     if (lineData.Size > 0u)
     {
@@ -165,57 +141,26 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
         }
     }
 
-    // The new buffer will be multiple lines larger than the original buffer;
-    // additionally, it will contain one additional byte since a null-terminator will be appended to the end.
-    const size_t maxTotalSize{std::numeric_limits<size_t>::max() - 1u};
-    if (originalSize > maxTotalSize) {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-    const size_t remainingSizeBudget{maxTotalSize - originalSize};
-    if (lineData.Size > 0u && numberOfRandomLineRepetitions > (remainingSizeBudget / lineData.Size)) {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-    const size_t totalBufferSize{originalSize + (lineData.Size * numberOfRandomLineRepetitions) + 1u};
-    if (totalBufferSize > static_cast<size_t>(INT_MAX)) {
-        //Check to see if this new buffer will fit within current bounds.
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-    const int newBufferSize{static_cast<int>(totalBufferSize)};
-
-    //For better performance do not produce testcases that are over the size limit for the executor.
-    // if (newBufferSize >= (1024 * 1024)) {
-    //     CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-    //     return;
-    // }
-
-    // Allocate the new buffer and set it's elements to zero.
-
-    char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
-    memset(newBuffer, 0u, newBufferSize);
-
-    // Copy data from the original buffer into the new buffer, but repeat the random line.
-    // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.
-
-    const size_t lineStart{lineData.StartIndex};
-    const size_t lineEnd{lineData.StartIndex + lineData.Size};
-    size_t destinationIndex{0u};
-
-    // Copy bytes before the selected line
-    memcpy(&newBuffer[destinationIndex], &originalBuffer[0], lineStart);
-    destinationIndex += lineStart;
-
-    // Write the selected line numberOfRandomLineRepetitions times.
-    for (size_t k{0u}; k < numberOfRandomLineRepetitions; ++k)
+    std::vector<size_t> lineOrder;
+    lineOrder.reserve(numLines + numberOfRandomLineRepetitions);
+    for (size_t i{0u}; i < numLines; ++i)
     {
-        memcpy(&newBuffer[destinationIndex], &originalBuffer[lineStart], lineData.Size);
-        destinationIndex += lineData.Size;
+        lineOrder.push_back(i);
+    }
+    for (size_t i{0u}; i < numberOfRandomLineRepetitions; ++i)
+    {
+        lineOrder.insert(lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(randomLineIndex + 1u), randomLineIndex);
     }
 
-    // Copy bytes after the selected line
-    memcpy(&newBuffer[destinationIndex], &originalBuffer[lineEnd], originalSize - lineEnd);
-    destinationIndex += originalSize - lineEnd;
+    const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder) + 1u};
+    if (newBufferSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
+    char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
+    memset(newBuffer, 0u, newBufferSize);
+    CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
+

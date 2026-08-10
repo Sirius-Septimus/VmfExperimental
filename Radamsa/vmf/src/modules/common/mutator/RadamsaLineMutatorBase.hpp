@@ -381,8 +381,8 @@ public:
     /**
      * @brief Obtains all line ranges in a buffer using a single forward scan.
      *
-     * Newline-terminated segments are returned as-is, and a final trailing segment
-     * without a newline is treated as one logical line.
+     * Only newline-terminated segments are returned. Trailing bytes without a
+     * newline are intentionally ignored to match rusty-radamsa.
      *
      * @param buffer Input buffer to search
      * @param size The size of the input buffer
@@ -399,6 +399,8 @@ public:
         if (buffer == nullptr)
             throw RuntimeException{"Input buffer is null", RuntimeException::UNEXPECTED_ERROR};
 
+        // Match rusty-radamsa: only newline-terminated lines are materialized.
+        // Trailing bytes without a newline are intentionally ignored.
         std::vector<Line> lines;
         lines.reserve(8u);
 
@@ -415,23 +417,78 @@ public:
                 lines.push_back(currentLine);
 
                 currentLine = Line{};
-                if (it + 1u < size)
-                {
-                    currentLine.IsValid = true;
-                    currentLine.StartIndex = it + 1u;
-                }
+                currentLine.IsValid = true;
+                currentLine.StartIndex = it + 1u;
             }
         }
-
-        if (currentLine.IsValid && currentLine.Size > 0u)
-            lines.push_back(currentLine);
 
         return lines;
     }
 
     /**
-     * @brief Obtains the number of a lines after a specific index.
-     * 
+     * @brief Computes the total byte length of a line list.
+     *
+     * The result is the serialized byte count without any added terminator.
+     *
+     * @param lines The line metadata to sum
+     */
+    size_t GetAllLineDataSize(const std::vector<Line>& lines) const
+    {
+        size_t total{0u};
+        for (const Line& line : lines)
+        {
+            total += line.Size;
+        }
+        return total;
+    }
+
+    /**
+     * @brief Computes the serialized byte length of a line list in the provided order.
+     *
+     * @param lines The line metadata to sum
+     * @param lineOrder The order in which the lines will be serialized
+     */
+    size_t GetAllLineDataSize(const std::vector<Line>& lines, const std::vector<size_t>& lineOrder) const
+    {
+        size_t total{0u};
+        for (const size_t lineIndex : lineOrder)
+        {
+            total += lines.at(lineIndex).Size;
+        }
+        return total;
+    }
+
+    /**
+     * @brief Copies a sequence of lines into an output buffer in the provided order.
+     *
+     * @param originalBuffer Source buffer that contains the line bytes
+     * @param lines Line metadata describing the copied ranges
+     * @param lineOrder Order in which to serialize the lines
+     * @param newBuffer Destination buffer that receives the serialized line data
+     */
+    template<typename TOrderContainer>
+    void CopyAllLineDataToBuffer(
+        const char* const originalBuffer,
+        const std::vector<Line>& lines,
+        const TOrderContainer& lineOrder,
+        char* newBuffer) const
+    {
+        size_t nextBufferIndex{0u};
+        for (const size_t lineIndex : lineOrder)
+        {
+            const Line& line{lines.at(lineIndex)};
+            memcpy(
+                newBuffer + nextBufferIndex,
+                originalBuffer + line.StartIndex,
+                line.Size
+            );
+            nextBufferIndex += line.Size;
+        }
+    }
+
+    /**
+     * @brief Obtains the number of newline-terminated lines after a specific index.
+     *
      * @param buffer Data buffer to search through
      * @param size Size of the provided data buffer
      * @param index Index to start the line search at
@@ -458,9 +515,7 @@ public:
             if(buffer[it] == '\n')
                 ++numberOfLines;
 
-        // Treat newline-free input as a single logical line so line mutators
-        // can still operate on buffers that do not contain any '\n' bytes.
-        return (numberOfLines == 0u) ? 1u : numberOfLines;
+        return numberOfLines;
     }
 
     /**
