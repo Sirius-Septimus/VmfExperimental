@@ -72,7 +72,7 @@ public:
             randomStop = rand->randBetween(0ul, static_cast<unsigned long>(MINIMUM_UPPER_LIMIT));
         }
 
-        return rand->randBetween(0ul, static_cast<unsigned long>(randomUpperLimit)) + 1u; // We add one to the return value in order to account for the case where the random upper value is zero.
+        return rand->randBetween(0ul, static_cast<unsigned long>(randomUpperLimit));
     }
     /**
      * @brief Encodes 21-bit character code points into UTF-8 values of 1 to 4 bytes

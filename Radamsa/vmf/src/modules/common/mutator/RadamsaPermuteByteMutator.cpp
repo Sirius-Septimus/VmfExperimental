@@ -121,30 +121,14 @@ void RadamsaPermuteByteMutator::mutateTestCase(StorageModule& storage, StorageEn
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, originalBuffer, originalSize);
 
-    // Copy data from the original buffer into the new buffer, but swap random bytes.
-    // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.
+    // Shuffle a local slice, matching rusty-radamsa's p..n window.
+    const size_t p{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u)))};
+    const size_t sliceLength{static_cast<size_t>(rand->randBetween(2ul, 19ul))};
+    const size_t n{std::min(p + sliceLength, originalSize)};
 
-    for (size_t sourceIndex{0u}; sourceIndex < originalSize; ++sourceIndex)
+    for (size_t i{n - 1u}; i > p; --i)
     {
-        // Select a random index and swap the two bytes.
-
-        const unsigned long lower{0ul};
-        const size_t upper{originalSize - 1u};
-        const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
-        const size_t randomIndexToSwap{
-                                    std::clamp(
-                                            static_cast<size_t>(rand->randBetween(
-                                                lower,
-                                                maximumRandomIndexValue)),
-                                            static_cast<size_t>(lower),
-                                            upper
-                                    )
-        };
-
-        const char sourceByte{newBuffer[sourceIndex]};
-        const char swappedByte{newBuffer[randomIndexToSwap]};
-
-        newBuffer[sourceIndex] = swappedByte;
-        newBuffer[randomIndexToSwap] = sourceByte;
+        const size_t randomIndexToSwap{static_cast<size_t>(rand->randBetween(static_cast<unsigned long>(p), static_cast<unsigned long>(i)))};
+        std::swap(newBuffer[i], newBuffer[randomIndexToSwap]);
     }
 }

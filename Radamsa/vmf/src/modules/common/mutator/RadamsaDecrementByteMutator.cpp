@@ -134,5 +134,7 @@ void RadamsaDecrementByteMutator::mutateTestCase(StorageModule& storage, Storage
                                     )
     };
 
-    newBuffer[randomIndexToDecrement] = static_cast<char>((originalBuffer[randomIndexToDecrement] - 0x01u) % std::numeric_limits<char>::max());
+    const auto oldByte{static_cast<unsigned char>(originalBuffer[randomIndexToDecrement])};
+    const auto newByte{static_cast<unsigned char>(oldByte - 0x01u)};
+    newBuffer[randomIndexToDecrement] = static_cast<char>(newByte);
 }

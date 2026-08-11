@@ -138,5 +138,7 @@ void RadamsaIncrementByteMutator::mutateTestCase(StorageModule& storage, Storage
                                     )
     };
 
-    newBuffer[randomIndexToIncrement] = static_cast<char>((originalBuffer[randomIndexToIncrement] + 0x01u) % std::numeric_limits<char>::max());
+    const auto oldByte{static_cast<unsigned char>(originalBuffer[randomIndexToIncrement])};
+    const auto newByte{static_cast<unsigned char>(oldByte + 0x01u)};
+    newBuffer[randomIndexToIncrement] = static_cast<char>(newByte);
 }
