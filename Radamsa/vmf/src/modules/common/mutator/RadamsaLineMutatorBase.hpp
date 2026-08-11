@@ -426,6 +426,32 @@ public:
     }
 
     /**
+     * @brief Obtains all line ranges in a buffer and rejects binarish inputs,
+     * matching rusty-radamsa's try_lines helper.
+     *
+     * @param buffer Input buffer to search
+     * @param size The size of the input buffer
+     * @param lines Output line metadata
+     * @return true if the buffer has line data and the first line is not binarish
+     */
+    bool TryGetAllLineData(
+                            const char* const buffer,
+                            const size_t size,
+                            std::vector<Line>& lines)
+    {
+        lines = GetAllLineData(buffer, size);
+
+        if (lines.empty())
+            return false;
+
+        const Line& firstLine{lines.front()};
+        if (IsBinarish(buffer + firstLine.StartIndex, firstLine.Size))
+            return false;
+
+        return true;
+    }
+
+    /**
      * @brief Computes the total byte length of a line list.
      *
      * The result is the serialized byte count without any added terminator.

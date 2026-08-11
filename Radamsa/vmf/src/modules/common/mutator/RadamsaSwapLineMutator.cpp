@@ -107,7 +107,12 @@ void RadamsaSwapLineMutator::mutateTestCase(StorageModule& storage, StorageEntry
         return;
     }
 
-    const std::vector<Line> lines{GetAllLineData(originalBuffer, originalSize)};
+    std::vector<Line> lines;
+    if (!TryGetAllLineData(originalBuffer, originalSize, lines))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
     const size_t numLines{lines.size()};
     if (numLines < 2u)
     {

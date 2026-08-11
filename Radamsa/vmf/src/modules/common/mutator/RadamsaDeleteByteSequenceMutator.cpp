@@ -115,17 +115,18 @@ void RadamsaDeleteByteSequenceMutator::mutateTestCase(StorageModule& storage, St
     }
 
 
-    // Select random indexes for the start and end of the sequence
+    // Select random indexes for the start and exclusive end of the sequence.
+    // This matches rusty-radamsa's [s, e) deletion semantics.
     const unsigned long start_lower{0ul};
-    const unsigned long start_upper{static_cast<unsigned long>(originalSize - 1u - 1u)}; // additional -1 to leave at least one byte at the end
+    const unsigned long start_upper{static_cast<unsigned long>(originalSize - 1u - 1u)}; // leave at least one byte in the suffix
     const size_t start_index{static_cast<size_t>(rand->randBetween(start_lower, start_upper))};
 
     const unsigned long end_lower{static_cast<unsigned long>(start_index + 1u)};
     const unsigned long end_upper{static_cast<unsigned long>(originalSize - 1u)};
-    const size_t end_index{static_cast<size_t>(rand->randBetween(end_lower, end_upper))};
+    const size_t end_exclusive{static_cast<size_t>(rand->randBetween(end_lower, end_upper))};
 
     // Calculate the size of the modified buffer
-    const size_t newBufferSize{originalSize - (end_index - start_index + 1u)};
+    const size_t newBufferSize{originalSize - (end_exclusive - start_index)};
 
     // Allocate the new buffer and set it's elements to zero.
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
@@ -134,13 +135,11 @@ void RadamsaDeleteByteSequenceMutator::mutateTestCase(StorageModule& storage, St
     // Copy pre-sequence into modified buffer
     memcpy(newBuffer, originalBuffer, start_index);
 
-    // Copy post-sequence into modified buffer
-    /*
-     *	Destination is `newBuffer + start_index`, immediately after the prefix copied above. Writing at offset 0 here would overwrite the prefix.
-     */
+    // Copy post-sequence into modified buffer.
+    // The suffix starts at the exclusive end index, so the byte at end_exclusive is preserved.
     memcpy(
         newBuffer + start_index,
-        originalBuffer + end_index + 1u,
-        originalSize - (end_index + 1u)
+        originalBuffer + end_exclusive,
+        originalSize - end_exclusive
     );
 }

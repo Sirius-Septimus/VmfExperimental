@@ -110,7 +110,12 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
         return;
     }
 
-    const std::vector<Line> lines{GetAllLineData(originalBuffer, originalSize)};
+    std::vector<Line> lines;
+    if (!TryGetAllLineData(originalBuffer, originalSize, lines))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
     const size_t numLines{lines.size()};
     if (numLines < minimumLines)
     {
@@ -124,9 +129,24 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
         lineOrder[i] = i;
     }
 
-    for (size_t i{numLines - 1u}; i > 0u; --i)
+    const size_t maxStartIndex{numLines - 3u};
+    const size_t startIndex{
+        maxStartIndex == 0u
+            ? 0u
+            : static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(maxStartIndex)))
+    };
+    const size_t maxShuffleLength{numLines - startIndex};
+    const size_t shuffleLength{
+        std::max(
+            2u,
+            std::min(
+                static_cast<size_t>(this->rand->randBetween(2ul, static_cast<unsigned long>(std::min<size_t>(19u, maxShuffleLength)))),
+                maxShuffleLength))
+    };
+
+    for (size_t i{startIndex + shuffleLength - 1u}; i > startIndex; --i)
     {
-        const size_t randIndex = this->rand->randBetween(0ul, static_cast<unsigned long>(i));
+        const size_t randIndex = static_cast<size_t>(this->rand->randBetween(static_cast<unsigned long>(startIndex), static_cast<unsigned long>(i)));
         std::swap(lineOrder[i], lineOrder[randIndex]);
     }
 

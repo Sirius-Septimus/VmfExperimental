@@ -114,28 +114,28 @@ void RadamsaWidenCodePointMutator::mutateTestCase(StorageModule& storage, Storag
 
     std::vector<uint8_t> data(originalBuffer, originalBuffer + originalSize);
 
-    // Collect indices of all valid printable ASCII bytes
+    // Collect indices of bytes that match rusty-radamsa's widening eligibility.
     std::vector<size_t> validIndices;
     for (size_t i = 0; i < data.size(); ++i)
     {
-        if (data[i] >= 32 && data[i] <= 126)
+        if (data[i] == (data[i] & 0b111111))
         {
             validIndices.push_back(i);
         }
     }
 
-    // If no valid ASCII byte exists, copy buffer as-is
+    // If no eligible byte exists, copy buffer as-is.
     if (validIndices.empty())
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    // Pick a random valid index
+    // Pick a random eligible index.
     const unsigned long lower{0ul};
     const unsigned long upper{static_cast<unsigned long>(validIndices.size() - 1)};
-    size_t index = validIndices[static_cast<size_t>(this->rand->randBetween(lower, upper))];
-    uint8_t codePoint = data[index];
+    const size_t index = validIndices[static_cast<size_t>(this->rand->randBetween(lower, upper))];
+    const uint8_t codePoint = data[index];
 
     data[index] = 0b11000000;   // set 2-byte utf prefix (110xxxxx)
     data.insert(data.begin() + index + 1, codePoint | 0b10000000); // set continuation byte prefix (10xxxxxx)
