@@ -85,7 +85,6 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
     // Randomize the order of given lines.
 
     const size_t minimumSize{3u};   // minimal case consists of three newlines
-    const size_t minimumLines{3u};  // for two lines, just use SwapLine
     size_t originalSize;
     char* originalBuffer;
 
@@ -117,7 +116,7 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
         return;
     }
     const size_t numLines{lines.size()};
-    if (numLines < minimumLines)
+    if (numLines < 3u)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
@@ -131,17 +130,12 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
 
     const size_t maxStartIndex{numLines - 3u};
     const size_t startIndex{
-        maxStartIndex == 0u
-            ? 0u
-            : static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(maxStartIndex)))
+        static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(maxStartIndex)))
     };
     const size_t maxShuffleLength{numLines - startIndex};
+    const size_t shuffleUpperBound{std::min<size_t>(19u, maxShuffleLength)};
     const size_t shuffleLength{
-        std::max(
-            2u,
-            std::min(
-                static_cast<size_t>(this->rand->randBetween(2ul, static_cast<unsigned long>(std::min<size_t>(19u, maxShuffleLength)))),
-                maxShuffleLength))
+        static_cast<size_t>(this->rand->randBetween(2ul, static_cast<unsigned long>(shuffleUpperBound)))
     };
 
     for (size_t i{startIndex + shuffleLength - 1u}; i > startIndex; --i)
