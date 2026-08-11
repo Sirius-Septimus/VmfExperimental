@@ -24,6 +24,7 @@
 #include "RuntimeException.hpp"
 #include <random>
 #include <algorithm>
+#include <limits>
 
 using namespace vmf;
 
@@ -135,5 +136,5 @@ void RadamsaRandomizeByteMutator::mutateTestCase(StorageModule& storage, Storage
                                     )
     };
 
-    newBuffer[randomIndexToRandomize] = static_cast<char>(rand->randBetween(0ul, static_cast<unsigned long>(std::numeric_limits<char>::max())));
+    newBuffer[randomIndexToRandomize] = static_cast<char>(rand->randBetween(0ul, static_cast<unsigned long>(std::numeric_limits<unsigned char>::max())));
 }

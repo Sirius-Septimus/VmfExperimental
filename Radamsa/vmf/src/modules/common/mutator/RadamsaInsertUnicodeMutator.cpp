@@ -160,8 +160,8 @@ void RadamsaInsertUnicodeMutator::mutateTestCase(StorageModule& storage, Storage
 
     data.insert(
         data.begin() + insert_index,
-        toInsert.rbegin(),
-        toInsert.rend()
+        toInsert.begin(),
+        toInsert.end()
     );
     
     const size_t newBufferSize{data.size()};

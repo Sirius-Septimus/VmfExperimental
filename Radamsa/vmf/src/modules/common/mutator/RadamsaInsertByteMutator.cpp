@@ -24,6 +24,7 @@
 #include "RuntimeException.hpp"
 #include <random>
 #include <algorithm>
+#include <limits>
 
 using namespace vmf;
 
@@ -82,9 +83,8 @@ void RadamsaInsertByteMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaInsertByteMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Consume the original buffer by inserting a byte and appending a null-terminator to the end.
+    // Consume the original buffer by inserting a byte at a Rust-like position in the data.
 
-    constexpr size_t minimumSize{1u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -106,48 +106,40 @@ void RadamsaInsertByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    // Check if buffer size meets minimum requirement
-    if (originalSize < minimumSize)
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
     // The new buffer size will contain one additional element since we are inserting a random byte.
-
     const size_t newBufferSize{originalSize + 1u};
 
     // Allocate the new buffer and set it's elements to zero.
-
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
 
-    // Select a random index from which the new byte will be inserted.
-
-    const unsigned long lower{0ul};
-    const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
+    // Select a Rust-like insertion position in the range [0, originalSize].
     const size_t randomInsertionIndex{
-                                std::clamp(
-                                    static_cast<size_t>(rand->randBetween(
-                                        lower,
-                                        maximumRandomIndexValue
-                                    )),
-                                    static_cast<size_t>(lower),
-                                    upper
-                                )
+        static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(originalSize)))
     };
 
-    // Copy data from the original buffer into the new buffer, but insert a random byte.
-    // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.
+    const char randomByte{
+        static_cast<char>(
+            rand->randBetween(
+                0ul,
+                static_cast<unsigned long>(std::numeric_limits<unsigned char>::max())
+            )
+        )
+    };
 
-    for (size_t sourceIndex{0u}, destinationIndex{0u}; sourceIndex < originalSize; ++sourceIndex)
+    // Copy data from the original buffer into the new buffer while inserting one extra byte.
+    for (size_t sourceIndex{0u}, destinationIndex{0u}; sourceIndex < originalSize; ++sourceIndex, ++destinationIndex)
     {
+        if (destinationIndex == randomInsertionIndex)
+        {
+            newBuffer[destinationIndex++] = randomByte;
+        }
+
         newBuffer[destinationIndex] = originalBuffer[sourceIndex];
+    }
 
-        if (sourceIndex == randomInsertionIndex)
-            newBuffer[++destinationIndex] = static_cast<char>(rand->randBetween(0ul, static_cast<unsigned long>(std::numeric_limits<char>::max())));
-
-        ++destinationIndex;
+    if (randomInsertionIndex == originalSize)
+    {
+        newBuffer[originalSize] = randomByte;
     }
 }
