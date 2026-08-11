@@ -125,6 +125,10 @@ struct Delimited {
 
         return;
     }
+
+    size_t serializedSize() const noexcept {
+        return data.size() + 2u;
+    }
 };
 
 /**
@@ -181,6 +185,13 @@ public:
         }
 
         return;
+    }
+
+    size_t serializedSize() const noexcept {
+        if (holds_alternative<vector<Byte>>(value)) {
+            return get<vector<Byte>>(value).size();
+        }
+        return get<Delimited>(value).serializedSize();
     }
 private:
     explicit Text(const vector<Byte>& s) : value(s) {}
@@ -309,6 +320,19 @@ struct Data {
             }
         }
     }
+
+    size_t serializedSize() const noexcept {
+        if (holds_alternative<vector<Byte>>(value)) {
+            return get<vector<Byte>>(value).size();
+        }
+
+        size_t total{0u};
+        const vector<Text>& texts = get<vector<Text>>(value);
+        for (const Text& t : texts) {
+            total += t.serializedSize();
+        }
+        return total;
+    }
 };
 /**
  * @struct Ascii
@@ -360,11 +384,19 @@ public:
      */
     vector<Byte> unlex() const {
         vector<Byte> out;
-        out.reserve(chunks.size() * 16);
+        out.reserve(serializedSize());
         for (const Data& d : chunks) {
             d.unlex(out);
         }
         return out;
+    }
+
+    size_t serializedSize() const noexcept {
+        size_t total{0u};
+        for (const Data& d : chunks) {
+            total += d.serializedSize();
+        }
+        return total;
     }
 
 private:
@@ -482,14 +514,21 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
     }
 
     parsedAscii->mutate(this->rand, m_maxNewlineInsertions);
-    vector<Byte> mutatedBytes = parsedAscii->unlex();
 
-    if (mutatedBytes.size() > m_maxAsciiOutputBytes)
+    const size_t estimatedAsciiOutputBytes{parsedAscii->serializedSize()};
+    if (estimatedAsciiOutputBytes > m_maxAsciiOutputBytes)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
+    if (estimatedAsciiOutputBytes > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
+
+    vector<Byte> mutatedBytes = parsedAscii->unlex();
     const size_t newBufferSize{mutatedBytes.size()};
     if (newBufferSize > INT_MAX) {
         //Check to see if the newBufferSize excedes the maximum size.
