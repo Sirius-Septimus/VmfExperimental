@@ -127,17 +127,17 @@ void RadamsaModifyTextNumberMutator::mutateTestCase(StorageModule& storage, Stor
 
     NumInfo toMutate = dataNums[this->rand->randBetween(0, int(dataNums.size() - 1))];
 
-    const vector<unsigned int> interestingNums = this->generateInterestingNumbers();
-    unsigned int newValue;
+    const vector<NumberValue> interestingNums = this->generateInterestingNumbers();
+    NumberValue newValue;
     switch (this->rand->randBetween(0, 11)) {
         case 0:
-            newValue = toMutate.value + 1; break;
+            newValue = toMutate.value + static_cast<NumberValue>(1); break;
         case 1:
-            newValue = (toMutate.value > 0) ? toMutate.value - 1 : 0; break;
+            newValue = toMutate.value - static_cast<NumberValue>(1); break;
         case 2:
-            newValue = 0; break;
+            newValue = static_cast<NumberValue>(0); break;
         case 3:
-            newValue = 1; break;
+            newValue = static_cast<NumberValue>(1); break;
         case 4:
         case 5:
         case 6:
@@ -149,24 +149,25 @@ void RadamsaModifyTextNumberMutator::mutateTestCase(StorageModule& storage, Stor
                 this->rand->randBetween(0, int(interestingNums.size() - 1))
             ]; break;
         case 8: {
-            unsigned int val = interestingNums[
+            NumberValue val = interestingNums[
                 this->rand->randBetween(0, int(interestingNums.size() - 1))
             ];
-            newValue = (toMutate.value > val) ? toMutate.value - val : 0;
+            newValue = toMutate.value - val;
             break;
         }
         case 9:
-            newValue = 2 * toMutate.value; break;
+            newValue = toMutate.value * static_cast<NumberValue>(2); break;
         default: {
-            unsigned int n = this->rand->randBetween(1, 128);
+            NumberValue n = static_cast<NumberValue>(this->rand->randBetween(1, 128));
             unsigned int s = this->rand->randBetween(0, 2);
-            newValue = (s == 0 && toMutate.value > n) ? (toMutate.value - n) : (toMutate.value + n);
+            newValue = (s == 0) ? (toMutate.value - n) : (toMutate.value + n);
             break;
         }
     }
 
-    std::string newValueStr = std::to_string(newValue);
+    std::string newValueStr = numberValueToString(newValue);
     vector<uint8_t> new_data;
+    new_data.reserve(data.size() + newValueStr.size());
     new_data.insert(    // everything before the original value
         new_data.end(), 
         data.begin(), 

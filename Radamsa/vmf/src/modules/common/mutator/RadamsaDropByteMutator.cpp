@@ -82,7 +82,7 @@ void RadamsaDropByteMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaDropByteMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Consume the original buffer by dropping a byte and appending a null-terminator to the end.
+    // Consume the original buffer by dropping a byte.
 
     constexpr size_t minimumSize{1u};
     size_t originalSize;
@@ -113,10 +113,10 @@ void RadamsaDropByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
         return;
     }
 
-    // The new buffer will contain one less byte, but a null-terminator will be appended to the end; therefore, the sizes will be equal.
+    // The new buffer will contain one less byte.
 
     //Buffer will never grow past sizeof(int) because it is returned from getBufferSize()
-    const int newBufferSize{static_cast<int>(originalSize)}; 
+    const int newBufferSize{static_cast<int>(originalSize - 1u)}; 
 
     // Allocate the new buffer and set it's elements to zero.
 
@@ -137,7 +137,6 @@ void RadamsaDropByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
                                                         upper)};
 
     // Copy data from the original buffer into the new buffer, but exclude the random byte.
-    // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.
     
     for (size_t sourceIndex{0u}, destinationIndex{0u}; sourceIndex < originalSize; ++sourceIndex)
     {

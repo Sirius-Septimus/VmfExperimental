@@ -22,7 +22,9 @@
 
 #include "RadamsaMutatorBase.hpp"
 #include <algorithm>
+#include <cctype>
 #include <optional>
+#include <string>
 
 using std::vector;
 using std::isdigit;
@@ -44,11 +46,15 @@ public:
     *
     * @brief This structure contains the state of an array of numbers translated from an array of text.
     */
+    using NumberValue = unsigned __int128;
+
     struct NumInfo {
-        unsigned int value = 0; /**<The value of the data*/
+        NumberValue value = 0; /**<The value of the data*/
         size_t offset = 0; /**<The index of the data */
         size_t length = 0; /**<the size of the data*/
     };
+
+    static constexpr NumberValue NUMBER_VALUE_MAX{~static_cast<NumberValue>(0)};
 
     /**
     * @brief Generates a random amount of repetitions to be performed. Upper limit is 20000;
@@ -112,21 +118,20 @@ public:
         while (i < data.size()) {
             if (isdigit(static_cast<unsigned char>(data[i]))) {
                 size_t start = i;
-                while (i < data.size() && isdigit(static_cast<unsigned char>(data[i]))) ++i;   // find length of number
-
-                std::string numStr(data.begin() + start, data.begin() + i);
-                try {
-                    unsigned long long val = std::stoull(numStr);
-                    if (val <= std::numeric_limits<unsigned int>::max()) {
-                        result.push_back({static_cast<unsigned int>(val), start, i - start});
+                NumberValue value = 0;
+                bool overflow = false;
+                while (i < data.size() && isdigit(static_cast<unsigned char>(data[i]))) {
+                    const unsigned digit = static_cast<unsigned>(data[i] - static_cast<uint8_t>('0'));
+                    if (!overflow && value <= (NUMBER_VALUE_MAX - static_cast<NumberValue>(digit)) / 10u) {
+                        value = value * 10u + static_cast<NumberValue>(digit);
+                    } else {
+                        overflow = true;
                     }
-                    // else: too large for ui, skip
-                } 
-                catch([[maybe_unused]]const std::invalid_argument& e) {
-                    // invalid number, skip
-                }   
-                catch([[maybe_unused]]const std::out_of_range& e) {
-                    // too large for ull, skip
+                    ++i;
+                }
+
+                if (!overflow) {
+                    result.push_back({value, start, i - start});
                 }
             }
             else ++i;
@@ -137,17 +142,35 @@ public:
     /**
      * @brief Generates a vector of "interesting" numbers i.e. values that one off from maxes or minimums.
      */
-    vector<unsigned int> generateInterestingNumbers() {
-        vector<unsigned int> result;
-        vector<unsigned int> shifts = {1, 7, 8, 15, 16, 31};    // truncating from original rust, as unsigned ints are only 32b
+    vector<NumberValue> generateInterestingNumbers() {
+        vector<NumberValue> result;
+        vector<unsigned int> shifts = {1, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128};
 
         for (unsigned int s : shifts) {
-            unsigned int val = 1ULL << s;
+            if (s >= 128u) {
+                continue;
+            }
+            NumberValue val = static_cast<NumberValue>(1) << s;
             result.push_back(val);
-            result.push_back(val - 1);
-            result.push_back(val + 1);
+            result.push_back(val - 1u);
+            result.push_back(val + 1u);
         }
 
+        return result;
+    }
+
+    static std::string numberValueToString(NumberValue value) {
+        if (value == 0u) {
+            return "0";
+        }
+
+        std::string result;
+        while (value != 0u) {
+            const unsigned digit = static_cast<unsigned>(value % 10u);
+            result.push_back(static_cast<char>('0' + digit));
+            value /= 10u;
+        }
+        std::reverse(result.begin(), result.end());
         return result;
     }
     /**

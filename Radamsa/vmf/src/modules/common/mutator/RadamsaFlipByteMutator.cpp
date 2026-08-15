@@ -144,7 +144,7 @@ void RadamsaFlipByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
     const size_t randomBitShift{
         static_cast<size_t>(rand->randBetween(
             0ul, 
-            static_cast<unsigned long>(std::numeric_limits<char>::digits + 1u)
+            7ul
         ))
     };
     const char randomMaskedBit{static_cast<char>(0x01u << randomBitShift)};
