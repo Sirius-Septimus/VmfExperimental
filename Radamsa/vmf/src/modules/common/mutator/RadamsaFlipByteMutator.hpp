@@ -42,7 +42,13 @@ class RadamsaFlipByteMutator: public MutatorModule, public RadamsaByteMutatorBas
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
+        // mutator flips so VMF runs stay easy to compare under identical
+        // decisions.
+
     private:
         VmfRand* rand;
+
+        // When enabled, mutateTestCase() bypasses VmfRand and flips the
+        // harness-provided byte/bit instead.
 };
 }

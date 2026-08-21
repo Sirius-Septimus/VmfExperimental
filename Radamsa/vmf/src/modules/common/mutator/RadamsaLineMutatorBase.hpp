@@ -382,7 +382,7 @@ public:
      * @brief Obtains all line ranges in a buffer using a single forward scan.
      *
      * Only newline-terminated segments are returned. Trailing bytes without a
-     * newline are intentionally ignored to match rusty-radamsa.
+     * newline are intentionally ignored to match the current line parser.
      *
      * @param buffer Input buffer to search
      * @param size The size of the input buffer
@@ -399,7 +399,7 @@ public:
         if (buffer == nullptr)
             throw RuntimeException{"Input buffer is null", RuntimeException::UNEXPECTED_ERROR};
 
-        // Match rusty-radamsa: only newline-terminated lines are materialized.
+        // Only newline-terminated lines are materialized.
         // Trailing bytes without a newline are intentionally ignored.
         std::vector<Line> lines;
         lines.reserve(8u);
@@ -427,7 +427,7 @@ public:
 
     /**
      * @brief Obtains all line ranges in a buffer and rejects binarish inputs,
-     * matching rusty-radamsa's try_lines helper.
+     * matching the helper used by the line parser.
      *
      * @param buffer Input buffer to search
      * @param size The size of the input buffer

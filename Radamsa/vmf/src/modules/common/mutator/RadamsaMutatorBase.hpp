@@ -61,6 +61,35 @@ size_t GetRandomRepetitionLength(VmfRand* rand) noexcept
 }
 
 /**
+ * @brief Matches the `10_usize.rand_log()` distribution.
+ *
+ * The first draw selects one of ten equally likely logarithmic buckets. The
+ * resulting values are 0, 1, 2..3, 4..7, ..., or 256..511.
+ *
+ * @param rand Pointer to the random generator instance
+ */
+size_t GetRustRandLog10(VmfRand* rand) noexcept
+{
+    const size_t bucket{
+        static_cast<size_t>(rand->randBetween(0ul, 9ul))
+    };
+
+    if (bucket == 0u)
+    {
+        return 0u;
+    }
+
+    const size_t lowerBound{size_t{1u} << (bucket - 1u)};
+    const size_t offset{
+        static_cast<size_t>(rand->randBetween(
+            0ul,
+            static_cast<unsigned long>(lowerBound - 1u)))
+    };
+
+    return lowerBound | offset;
+}
+
+/**
  * @brief Copies an entry to a new entry using the same testCaseKey. The entry remains unchanged.
  * 
  * @param baseEntry Entry to copy from

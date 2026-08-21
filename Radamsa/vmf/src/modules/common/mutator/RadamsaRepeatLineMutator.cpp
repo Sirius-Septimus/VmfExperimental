@@ -4,22 +4,22 @@
  * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 (only) as 
+ * it under the terms of the GNU General Public License version 2 (only) as
  * published by the Free Software Foundation.
- *  
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *  
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *  
+ *
  * @license GPL-2.0-only <https://spdx.org/licenses/GPL-2.0-only.html>
  * ===========================================================================*/
- /**
-  *
-  */
+/**
+ *
+ */
 #include "RadamsaRepeatLineMutator.hpp"
 #include "RuntimeException.hpp"
 #include <random>
@@ -31,21 +31,11 @@ using namespace vmf;
 #include "ModuleFactory.hpp"
 REGISTER_MODULE(RadamsaRepeatLineMutator);
 
-/**
- * @brief Builder method to support the ModuleFactory
- * Constructs an instance of this class
- * @return Module* - Pointer to the newly created instance
- */
 Module* RadamsaRepeatLineMutator::build(std::string name)
 {
     return new RadamsaRepeatLineMutator(name);
 }
 
-/**
- * @brief Initialization method
- *
- * @param config - Configuration object
- */
 void RadamsaRepeatLineMutator::init(ConfigInterface& config)
 {
     /*
@@ -61,38 +51,27 @@ void RadamsaRepeatLineMutator::init(ConfigInterface& config)
     rand = VmfRand::getInstance();
 }
 
-/**
- * @brief Construct a new RadamsaRepeatLineMutator::RadamsaRepeatLineMutator object
- *
- * @param name The of the name module
- */
 RadamsaRepeatLineMutator::RadamsaRepeatLineMutator(std::string name) : MutatorModule(name)
 {
-    
 }
 
-/**
- * @brief Destroy the RadamsaRepeatLineMutator::RadamsaRepeatLineMutator object
- *
- */
 RadamsaRepeatLineMutator::~RadamsaRepeatLineMutator()
 {
-
 }
 
-/**
- * @brief Register the storage needs for this module
- *
- * @param registry - StorageRegistry object
- */
+
+
+
+
 void RadamsaRepeatLineMutator::registerStorageNeeds(StorageRegistry& registry)
 {
-    // This module does not register for a test case buffer key, because mutators are told which buffer to write in storage
-    // by the input generator that calls them
+    (void)registry;
 }
 
 void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
+    (void)storage;
+
     // Consume the original buffer by repeating a random line multiple times and appending a null-terminator to the end.
 
     constexpr size_t minimumSize{1u};
@@ -104,7 +83,7 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
         originalSize = baseEntry->getBufferSize(testCaseKey);
     }
-    catch(const RuntimeException e)
+    catch (const RuntimeException e)
     {
         return;
     }
@@ -133,10 +112,17 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    const size_t randomLineIndex{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
+    size_t randomLineIndex{0u};
+    size_t numberOfRandomLineRepetitions{0u};
+    
+        randomLineIndex = static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
+        numberOfRandomLineRepetitions = std::max<size_t>(
+            2u,
+            GetRustRandLog10(this->rand)
+        );
+    
     const Line lineData{lines.at(randomLineIndex)};
 
-    size_t numberOfRandomLineRepetitions{GetRandomRepetitionLength(this->rand)};
     if (lineData.Size > 0u)
     {
         const size_t maxRepetitions{m_maxBufferGrowthBytes / lineData.Size};
@@ -168,4 +154,3 @@ void RadamsaRepeatLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     memset(newBuffer, 0u, newBufferSize);
     CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
-

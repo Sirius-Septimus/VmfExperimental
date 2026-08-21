@@ -75,6 +75,10 @@ RadamsaFuseNextMutator::~RadamsaFuseNextMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -90,7 +94,7 @@ void RadamsaFuseNextMutator::mutateTestCase(StorageModule& storage, StorageEntry
 {
     // result = prefix(prefix(buffer_firstHalf) + suffix(buffer)) + suffix(buffer_secondHalf)
 
-    const size_t minimumSize{2u};
+    const size_t minimumSize{1u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -131,8 +135,12 @@ void RadamsaFuseNextMutator::mutateTestCase(StorageModule& storage, StorageEntry
     const vector<char> data_firstHalf(data.begin(), data.begin() + midpoint);
     const vector<char> data_secondHalf(data.begin() + midpoint, data.end());
 
-    const vector<char> ab = fuse(data_firstHalf, data, this->rand);
-    const vector<char> aba = fuse(ab, data_secondHalf, this->rand);
+    vector<char> ab;
+    vector<char> aba;
+    
+        ab = fuse(data_firstHalf, data, this->rand);
+        aba = fuse(ab, data_secondHalf, this->rand);
+    
 
     const size_t newBufferSize{aba.size()};
 

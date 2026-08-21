@@ -24,6 +24,7 @@
 #include "RuntimeException.hpp"
 #include "RadamsaByteMutatorBase.hpp"
 #include "VmfRand.hpp"
+#include <vector>
 
 namespace vmf
 {
@@ -45,6 +46,8 @@ class RadamsaAsciiBadMutator: public MutatorModule, public RadamsaByteMutatorBas
         virtual ~RadamsaAsciiBadMutator();
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
+
+
 
     private:
         VmfRand* rand;

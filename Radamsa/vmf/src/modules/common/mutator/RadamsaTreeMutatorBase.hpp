@@ -418,6 +418,36 @@ public:
 
             return count;
         }
+        /**
+         * @brief Collects the current parser's non-root nodes in preorder for Swap Nodes candidate selection.
+         *
+         * The current VMF parser represents parenthesis-delimited values as non-root nodes. Excluding the root keeps the candidate indexes aligned with the current delimiter-aware structure. A future parser with explicit synthetic-root and delimiter metadata checks could replace the isRoot rule.
+         *
+         * @param n Current node
+         * @param candidates Output vector of selectable nodes
+         * @param isRoot Whether n is the parser root
+         */
+        void collectNonRootSwapCandidates(
+            Node* n,
+            std::vector<Node*>& candidates,
+            bool isRoot = true)
+        {
+            if (n == nullptr)
+            {
+                return;
+            }
+
+            if (!isRoot)
+            {
+                candidates.push_back(n);
+            }
+
+            for (Node* child : n->children)
+            {
+                collectNonRootSwapCandidates(child, candidates, false);
+            }
+        }
+
         
         /**
          * @brief Traverse tree in-order, returning index-th node.
@@ -538,22 +568,76 @@ public:
             return;
         }
         /**
-         * @brief Swap the values of two nodes.
-         * 
-         * @param node1 The first node to be swaped
-         * @param node2 The second node to be swaped
+         * @brief Apply order-sensitive whole-node swap semantics.
+         *
+         * Unrelated nodes exchange complete subtree positions. If node1 is an
+         * ancestor of node2, node1 is replaced by a deep copy of node2. If
+         * node2 is an ancestor of node1, the sequential assignments restore
+         * the original tree, so this operation is a no-op.
+         *
+         * @param node1 The first selected node
+         * @param node2 The second selected node
         */
-        void swapNodes(Node* node1, Node* node2) {
-
-            if(!node1 || !node2) {
+        void swapNodes(Node* node1, Node* node2)
+        {
+            if(node1 == nullptr || node2 == nullptr) {
                 throw RuntimeException{"Both nodes to be swapped must not be nullptr", RuntimeException::USAGE_ERROR};
             }
 
-            const string temp = node1->value;
-            node1->value = node2->value;
-            node2->value = temp;
+            if(node1 == node2) {
+                return;
+            }
 
-            return;
+            const auto isAncestor = [](Node* possibleAncestor, Node* node) {
+                for(Node* current = node->parent; current != nullptr; current = current->parent) {
+                    if(current == possibleAncestor) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            const auto childPosition = [](Node* node) -> size_t {
+                if(node->parent == nullptr) {
+                    throw RuntimeException{"Cannot swap the synthetic root node", RuntimeException::USAGE_ERROR};
+                }
+
+                auto& siblings = node->parent->children;
+                const auto it = std::find(siblings.begin(), siblings.end(), node);
+                if(it == siblings.end()) {
+                    throw RuntimeException{"Node is not present in its parent child list", RuntimeException::USAGE_ERROR};
+                }
+                return static_cast<size_t>(it - siblings.begin());
+            };
+
+            if(isAncestor(node1, node2)) {
+                Node* parent = node1->parent;
+                const size_t position = childPosition(node1);
+                Node* replacement = node2->deepCopy(parent);
+
+                parent->children[position] = replacement;
+                delete node1;
+                return;
+            }
+
+            if(isAncestor(node2, node1)) {
+                return;
+            }
+
+            Node* parent1 = node1->parent;
+            Node* parent2 = node2->parent;
+            const size_t position1 = childPosition(node1);
+            const size_t position2 = childPosition(node2);
+
+            if(parent1 == parent2) {
+                std::swap(parent1->children[position1], parent1->children[position2]);
+                return;
+            }
+
+            parent1->children[position1] = node2;
+            parent2->children[position2] = node1;
+            node1->parent = parent2;
+            node2->parent = parent1;
         }
         /**
          * @brief Deallocate a node and its children, and remove this node from its parent child list.

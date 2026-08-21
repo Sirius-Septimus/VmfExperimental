@@ -69,6 +69,10 @@ RadamsaDeleteSequentialLinesMutator::~RadamsaDeleteSequentialLinesMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -122,8 +126,19 @@ void RadamsaDeleteSequentialLinesMutator::mutateTestCase(StorageModule& storage,
         return;
     }
 
-    const size_t randomLineIndexStart{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
-    const size_t randomLineIndexEnd{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>((numLines - 1u) - randomLineIndexStart))) + randomLineIndexStart};
+    size_t randomLineIndexStart{0u};
+    size_t randomLineIndexEnd{0u};
+    
+        // Choose a half-open deletion range whose exclusive end cannot
+        // equal numLines. Keep VMF's inclusive end representation, but limit
+        // both selected indices so the final materialized line is preserved.
+        randomLineIndexStart = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(numLines - 2u)));
+        randomLineIndexEnd = static_cast<size_t>(
+            rand->randBetween(
+                static_cast<unsigned long>(randomLineIndexStart),
+                static_cast<unsigned long>(numLines - 2u)));
+    
 
     std::vector<size_t> lineOrder(numLines);
     for (size_t i{0u}; i < numLines; ++i)
@@ -146,4 +161,3 @@ void RadamsaDeleteSequentialLinesMutator::mutateTestCase(StorageModule& storage,
     memset(newBuffer, 0u, newBufferSize);
     CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
-

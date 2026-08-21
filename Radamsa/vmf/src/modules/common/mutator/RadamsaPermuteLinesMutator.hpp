@@ -24,6 +24,7 @@
 #include "RuntimeException.hpp"
 #include "RadamsaLineMutatorBase.hpp"
 #include "VmfRand.hpp"
+#include <vector>
 
 namespace vmf
 {
@@ -41,6 +42,7 @@ class RadamsaPermuteLinesMutator: public MutatorModule, public RadamsaLineMutato
         virtual ~RadamsaPermuteLinesMutator();
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
+
 
     private:
         VmfRand* rand;

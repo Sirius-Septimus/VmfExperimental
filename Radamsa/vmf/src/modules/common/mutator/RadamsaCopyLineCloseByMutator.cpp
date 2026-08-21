@@ -69,6 +69,10 @@ RadamsaCopyLineCloseByMutator::~RadamsaCopyLineCloseByMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -126,8 +130,27 @@ void RadamsaCopyLineCloseByMutator::mutateTestCase(StorageModule& storage, Stora
         lineOrder[i] = i;
     }
 
-    const size_t randomLineIndexSource{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
-    const size_t randomLineIndexDestination{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines)))};
+    size_t randomLineIndexSource{0u};
+    size_t randomLineIndexDestination{0u};
+    
+        if (numLines == 1u)
+        {
+            // Special-case a single line by appending its copy.
+            randomLineIndexSource = 0u;
+            randomLineIndexDestination = 1u;
+        }
+        else
+        {
+            randomLineIndexSource = static_cast<size_t>(
+                rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u))
+            );
+            // The upper bound is exclusive, so it cannot select the
+            // insertion position after the final line.
+            randomLineIndexDestination = static_cast<size_t>(
+                rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u))
+            );
+        }
+    
     lineOrder.insert(lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(randomLineIndexDestination), randomLineIndexSource);
 
     const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder)};

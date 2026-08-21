@@ -42,6 +42,7 @@ class RadamsaInsertUnicodeMutator: public MutatorModule, public RadamsaByteMutat
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
+
     private:
         VmfRand* rand;
         std::vector<std::vector<uint8_t>> funnyUnicode;

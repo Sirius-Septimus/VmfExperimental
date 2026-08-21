@@ -69,6 +69,10 @@ RadamsaReplaceLineMutator::~RadamsaReplaceLineMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -126,8 +130,16 @@ void RadamsaReplaceLineMutator::mutateTestCase(StorageModule& storage, StorageEn
         lineOrder[i] = i;
     }
 
-    const size_t sourceLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
-    const size_t destinationLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
+    size_t sourceLineIndex{0u};
+    size_t destinationLineIndex{0u};
+    
+        sourceLineIndex = static_cast<size_t>(
+            this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u))
+        );
+        destinationLineIndex = static_cast<size_t>(
+            this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u))
+        );
+    
     lineOrder[destinationLineIndex] = sourceLineIndex;
 
     const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder)};

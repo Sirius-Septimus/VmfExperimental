@@ -69,6 +69,10 @@ RadamsaDeleteByteSequenceMutator::~RadamsaDeleteByteSequenceMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -116,14 +120,18 @@ void RadamsaDeleteByteSequenceMutator::mutateTestCase(StorageModule& storage, St
 
 
     // Select random indexes for the start and exclusive end of the sequence.
-    // This matches rusty-radamsa's [s, e) deletion semantics.
-    const unsigned long start_lower{0ul};
-    const unsigned long start_upper{static_cast<unsigned long>(originalSize - 1u - 1u)}; // leave at least one byte in the suffix
-    const size_t start_index{static_cast<size_t>(rand->randBetween(start_lower, start_upper))};
+    // Keep the deletion range half-open so the suffix copy preserves the byte at the exclusive end index.
+    size_t start_index{0u};
+    size_t end_exclusive{0u};
+    
+        const unsigned long start_lower{0ul};
+        const unsigned long start_upper{static_cast<unsigned long>(originalSize - 2u)};
+        start_index = static_cast<size_t>(rand->randBetween(start_lower, start_upper));
 
-    const unsigned long end_lower{static_cast<unsigned long>(start_index + 1u)};
-    const unsigned long end_upper{static_cast<unsigned long>(originalSize - 1u)};
-    const size_t end_exclusive{static_cast<size_t>(rand->randBetween(end_lower, end_upper))};
+        const unsigned long end_lower{static_cast<unsigned long>(start_index + 1u)};
+        const unsigned long end_upper{static_cast<unsigned long>(originalSize - 1u)};
+        end_exclusive = static_cast<size_t>(rand->randBetween(end_lower, end_upper));
+    
 
     // Calculate the size of the modified buffer
     const size_t newBufferSize{originalSize - (end_exclusive - start_index)};

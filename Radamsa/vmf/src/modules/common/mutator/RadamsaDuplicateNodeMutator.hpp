@@ -22,6 +22,7 @@
 #include "MutatorModule.hpp"
 #include "StorageEntry.hpp"
 #include "RuntimeException.hpp"
+#include "RadamsaDelimiterTree.hpp"
 #include "RadamsaTreeMutatorBase.hpp"
 #include "VmfRand.hpp"
 
@@ -41,6 +42,7 @@ class RadamsaDuplicateNodeMutator: public MutatorModule, public RadamsaTreeMutat
         virtual ~RadamsaDuplicateNodeMutator();
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
+
 
     private:
         VmfRand* rand;

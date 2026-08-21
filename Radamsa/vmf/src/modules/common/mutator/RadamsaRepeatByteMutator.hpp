@@ -42,10 +42,16 @@ class RadamsaRepeatByteMutator: public MutatorModule, public RadamsaByteMutatorB
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
+        // count so VMF runs stay easy to compare under identical decisions.
+
+
     private:
         VmfRand* rand;
 
         // Per-call upper bound on additional bytes appended via byte repetition. Default 131072. Set the `maxByteRepetitions` config key to override; 0 disables the cap.
         size_t m_maxByteRepetitions{131072u};
+
+        // When enabled, mutateTestCase() bypasses VmfRand and uses the
+        // harness-provided byte index and repetition count instead.
 };
 }

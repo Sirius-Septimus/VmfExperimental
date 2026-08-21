@@ -78,6 +78,10 @@ RadamsaFuseOldMutator::~RadamsaFuseOldMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -93,7 +97,7 @@ void RadamsaFuseOldMutator::mutateTestCase(StorageModule& storage, StorageEntry*
 {
     // Combine two random fusions of the two halves of the buffer
 
-    const size_t minimumSize{2u};
+    const size_t minimumSize{1u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -134,8 +138,12 @@ void RadamsaFuseOldMutator::mutateTestCase(StorageModule& storage, StorageEntry*
     const vector<char> data_firstHalf(data.begin(), data.begin() + midpoint);
     const vector<char> data_secondHalf(data.begin() + midpoint, data.end());
 
-    vector<char> a = fuse(data_firstHalf, data_secondHalf, this->rand);
-    const vector<char> b = fuse(data_firstHalf, data_secondHalf, this->rand);
+    vector<char> a;
+    vector<char> b;
+    
+        a = fuse(data_firstHalf, data_secondHalf, this->rand);
+        b = fuse(data_firstHalf, data_secondHalf, this->rand);
+    
     a.insert(a.end(), b.begin(), b.end());
 
     const size_t newBufferSize{a.size()};

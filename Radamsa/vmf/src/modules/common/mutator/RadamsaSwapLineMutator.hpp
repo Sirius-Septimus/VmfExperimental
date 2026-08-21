@@ -4,17 +4,17 @@
  * <vmf@draper.com>
  *
  * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 (only) as 
+ * it under the terms of the GNU General Public License version 2 (only) as
  * published by the Free Software Foundation.
- *  
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *  
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *  
+ *
  * @license GPL-2.0-only <https://spdx.org/licenses/GPL-2.0-only.html>
  * ===========================================================================*/
 #pragma once
@@ -28,7 +28,7 @@
 namespace vmf
 {
 /**
- * @brief This mutator copies a line to a random location and appends a null-terminator to the end.
+ * @brief This mutator swaps two adjacent lines.
  */
 class RadamsaSwapLineMutator: public MutatorModule, public RadamsaLineMutatorBase
 {
@@ -41,6 +41,7 @@ class RadamsaSwapLineMutator: public MutatorModule, public RadamsaLineMutatorBas
         virtual ~RadamsaSwapLineMutator();
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
+
 
     private:
         VmfRand* rand;

@@ -69,6 +69,10 @@ RadamsaPermuteLinesMutator::~RadamsaPermuteLinesMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -128,19 +132,56 @@ void RadamsaPermuteLinesMutator::mutateTestCase(StorageModule& storage, StorageE
         lineOrder[i] = i;
     }
 
-    const size_t maxStartIndex{numLines - 3u};
-    const size_t startIndex{
-        static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(maxStartIndex)))
-    };
-    const size_t maxShuffleLength{numLines - startIndex};
-    const size_t shuffleUpperBound{std::min<size_t>(19u, maxShuffleLength)};
-    const size_t shuffleLength{
-        static_cast<size_t>(this->rand->randBetween(2ul, static_cast<unsigned long>(shuffleUpperBound)))
-    };
+    size_t startIndex{0u};
+    size_t shuffleLength{0u};
+    std::vector<size_t> swapIndices;
+    
+        const size_t minRange{numLines - 3u};
+        if (minRange == 0u)
+        {
+            startIndex = 0u;
+        }
+        else
+        {
+            startIndex = static_cast<size_t>(
+                this->rand->randBetween(
+                    0ul,
+                    static_cast<unsigned long>(minRange - 1u)
+                )
+            );
+        }
+
+        const size_t maxRange{numLines - startIndex};
+        size_t a{0u};
+        if (startIndex >= maxRange)
+        {
+            a = maxRange;
+        }
+        else
+        {
+            a = static_cast<size_t>(
+                this->rand->randBetween(
+                    static_cast<unsigned long>(startIndex),
+                    static_cast<unsigned long>(maxRange - 1u)
+                )
+            );
+        }
+
+        const size_t b{GetRustRandLog10(this->rand)};
+        shuffleLength = std::max<size_t>(2u, std::min(a, b));
+    
 
     for (size_t i{startIndex + shuffleLength - 1u}; i > startIndex; --i)
     {
-        const size_t randIndex = static_cast<size_t>(this->rand->randBetween(static_cast<unsigned long>(startIndex), static_cast<unsigned long>(i)));
+        size_t randIndex{0u};
+        
+            randIndex = static_cast<size_t>(
+                this->rand->randBetween(
+                    static_cast<unsigned long>(startIndex),
+                    static_cast<unsigned long>(i)
+                )
+            );
+        
         std::swap(lineOrder[i], lineOrder[randIndex]);
     }
 

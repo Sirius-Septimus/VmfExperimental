@@ -24,6 +24,7 @@
 #include "RuntimeException.hpp"
 #include <random>
 #include <algorithm>
+#include <climits>
 
 using namespace vmf;
 
@@ -82,6 +83,10 @@ RadamsaDuplicateNodeMutator::~RadamsaDuplicateNodeMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -95,32 +100,27 @@ void RadamsaDuplicateNodeMutator::registerStorageNeeds(StorageRegistry& registry
 
 void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Duplicates existing node, including its children, and adds it to the same parent as the original
+    // Duplicate a delimiter subtree beside the original.
 
-    const size_t minimumSize{4u};   // minimal case consists of two single-character nodes
-    const size_t minimumNodes{2u};
+    const size_t minimumSize{1u};
     size_t originalSize;
     char* originalBuffer;
 
-    // Try to get buffer size and pointer, return early if buffer is not allocated
     try
     {
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
         originalSize = baseEntry->getBufferSize(testCaseKey);
     }
-    catch(const RuntimeException e)
+    catch (const RuntimeException e)
     {
-        // Buffer not allocated
         return;
     }
 
-    // Check if buffer pointer is valid (not null)
     if (originalBuffer == nullptr)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
@@ -128,61 +128,47 @@ void RadamsaDuplicateNodeMutator::mutateTestCase(StorageModule& storage, Storage
     }
 
     const std::string treeStr(originalBuffer, originalSize);
-    /*
-     *	Build the tree via the noexcept tryBuild factory; fall back to CopyBufferAsIs when the input does not parse as a tree.
-     */
-    auto maybeTree = Tree::tryBuild(treeStr);
+    auto maybeTree = RadamsaDelimiterTree::tryBuild(treeStr);
     if (!maybeTree)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
-    Tree& tr = *maybeTree;
+    RadamsaDelimiterTree& tree = *maybeTree;
 
-    size_t numNodes = tr.countNodes(tr.root);
-    // Check if tree has minimum required number of nodes
-    if (numNodes < minimumNodes)
+    std::vector<RadamsaDelimiterTree::Node*> candidates;
+    tree.collectCandidates(candidates);
+    if (candidates.empty())
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    const unsigned long lower{1ul};
-    const unsigned long upper{static_cast<unsigned long>(numNodes - 2)};
-    size_t nodeIndexToDuplicate{static_cast<size_t>(this->rand->randBetween(lower, upper))}; // not const, because findNodeByIndex will modify it
-    Node* nodeToDuplicate = tr.findNodeByIndex(tr.root, nodeIndexToDuplicate); 
+    size_t selectedIndex{0u};
+    
+        selectedIndex = static_cast<size_t>(this->rand->randBetween(
+            0ul, static_cast<unsigned long>(candidates.size() - 1u)));
+    
 
-    // Estimate the growth of the duplicated subtree before attaching it.
-    const size_t duplicatedSubtreeNodes{tr.countNodes(nodeToDuplicate)};
-    if (m_maxDuplicateNodeNodes != std::numeric_limits<size_t>::max())
-    {
-        const size_t projectedTotalNodes = numNodes + duplicatedSubtreeNodes;
-        if (projectedTotalNodes > m_maxDuplicateNodeNodes)
-        {
-            CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-            return;
-        }
-    }
-
-    tr.duplicateNode(nodeToDuplicate, nodeToDuplicate->parent);
-
-    // Reject oversized output before serializing the tree back into a string.
-    const size_t estimatedOutputSize{tr.estimateSerializedSize(tr.root)};
-    if (estimatedOutputSize > m_maxDuplicateNodeOutputBytes || estimatedOutputSize > static_cast<size_t>(INT_MAX))
+    if (!tree.duplicateSelectedNode(
+            candidates[selectedIndex],
+            m_maxDuplicateNodeNodes,
+            m_maxDuplicateNodeOutputBytes))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    const string modTreeStr = tr.toString(tr.root);
-    const size_t newBufferSize{modTreeStr.length()};
-    if (newBufferSize > INT_MAX) {
-        //Check to see if the newBufferSize excedes the maximum size.
+    const size_t newBufferSize{tree.serializedSize()};
+    if (newBufferSize > m_maxDuplicateNodeOutputBytes ||
+        newBufferSize > static_cast<size_t>(INT_MAX))
+    {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
+
+    const std::string modifiedTree = tree.toString();
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
-
-    memcpy(newBuffer, modTreeStr.data(), newBufferSize);
+    memcpy(newBuffer, modifiedTree.data(), newBufferSize);
 }

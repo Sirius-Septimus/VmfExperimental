@@ -69,6 +69,10 @@ RadamsaDuplicateLineMutator::~RadamsaDuplicateLineMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -122,7 +126,19 @@ void RadamsaDuplicateLineMutator::mutateTestCase(StorageModule& storage, Storage
         return;
     }
 
-    const size_t randomLineIndex{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
+    size_t randomLineIndex{0u};
+    if (numLines == 1u)
+    {
+        // The single-line special case duplicates the sole line.
+        randomLineIndex = 0u;
+    }
+    else
+    {
+        // Select 0..len-1 with the upper endpoint excluded.
+        randomLineIndex = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(numLines - 2u))
+        );
+    }
     std::vector<size_t> lineOrder(numLines);
     for (size_t i{0u}; i < numLines; ++i)
     {

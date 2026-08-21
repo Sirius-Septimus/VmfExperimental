@@ -75,6 +75,10 @@ RadamsaFuseThisMutator::~RadamsaFuseThisMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -127,7 +131,10 @@ void RadamsaFuseThisMutator::mutateTestCase(StorageModule& storage, StorageEntry
     }
 
     vector<char> data(originalBuffer, originalBuffer + originalSize);
-    vector<char> new_data = fuse(data, data, this->rand);
+    vector<char> new_data;
+    
+        new_data = fuse(data, data, this->rand);
+    
 
     const size_t newBufferSize{new_data.size()};
     if (newBufferSize > INT_MAX) {

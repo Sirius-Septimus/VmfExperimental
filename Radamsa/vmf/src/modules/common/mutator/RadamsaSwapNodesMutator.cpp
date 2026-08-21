@@ -21,6 +21,7 @@
   *
   */
 #include "RadamsaSwapNodesMutator.hpp"
+#include "RadamsaDelimiterTree.hpp"
 #include "RuntimeException.hpp"
 #include <random>
 #include <algorithm>
@@ -68,6 +69,10 @@ RadamsaSwapNodesMutator::~RadamsaSwapNodesMutator()
 {
 
 }
+
+
+
+
 
 /**
  * @brief Register the storage needs for this module
@@ -117,34 +122,40 @@ void RadamsaSwapNodesMutator::mutateTestCase(StorageModule& storage, StorageEntr
     /*
      *	Build the tree via the noexcept tryBuild factory; fall back to CopyBufferAsIs when the input does not parse as a tree.
      */
-    auto maybeTree = Tree::tryBuild(treeStr);
+    auto maybeTree = RadamsaDelimiterTree::tryBuild(treeStr);
     if (!maybeTree)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
-    Tree& tr = *maybeTree;
+    RadamsaDelimiterTree& tr = *maybeTree;
 
-    size_t numNodes = tr.countNodes(tr.root);
-    // Check if tree has minimum required number of nodes
-    if (numNodes < minimumNodes)
+    std::vector<RadamsaDelimiterTree::Node*> candidates;
+    tr.collectSwapCandidates(candidates);
+
+    // Select only delimiter-backed candidates and require at least two.
+    if (candidates.size() < minimumNodes)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    const unsigned long lower{0ul};
-    const unsigned long upper{static_cast<unsigned long>(numNodes - 1)};
-    size_t nodeIndex1{static_cast<size_t>(this->rand->randBetween(lower, upper))};   // not const, because findNodeByIndex will modify it
-    size_t nodeIndex2{static_cast<size_t>(this->rand->randBetween(lower, upper))};   // ^
+    size_t nodeIndex1{0u};
+    size_t nodeIndex2{0u};
+    
+        const unsigned long lower{0ul};
+        const unsigned long upper{static_cast<unsigned long>(candidates.size() - 1u)};
+        nodeIndex1 = static_cast<size_t>(this->rand->randBetween(lower, upper));
+        nodeIndex2 = static_cast<size_t>(this->rand->randBetween(lower, upper));
+    
     
     if(nodeIndex1 != nodeIndex2) {
-        Node* node1 = tr.findNodeByIndex(tr.root, nodeIndex1); 
-        Node* node2 = tr.findNodeByIndex(tr.root, nodeIndex2);
+        RadamsaDelimiterTree::Node* node1 = candidates[nodeIndex1];
+        RadamsaDelimiterTree::Node* node2 = candidates[nodeIndex2];
         tr.swapNodes(node1, node2);
     }
     
-    const string modTreeStr = tr.toString(tr.root);
+    const string modTreeStr = tr.toString();
     const size_t newBufferSize{modTreeStr.length()};
     if (newBufferSize > INT_MAX) {
         //Check to see if the newBufferSize excedes the maximum size.

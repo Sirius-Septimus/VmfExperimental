@@ -69,6 +69,10 @@ RadamsaPermuteByteMutator::~RadamsaPermuteByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -121,14 +125,23 @@ void RadamsaPermuteByteMutator::mutateTestCase(StorageModule& storage, StorageEn
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, originalBuffer, originalSize);
 
-    // Shuffle a local slice, matching rusty-radamsa's p..n window.
-    const size_t p{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u)))};
-    const size_t sliceLength{static_cast<size_t>(rand->randBetween(2ul, 19ul))};
-    const size_t n{std::min(p + sliceLength, originalSize)};
+    // Shuffle a local slice using the p..n window.
+    size_t p{0u};
+    size_t n{0u};
+    std::vector<size_t> swapIndices;
+    
+        p = static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u)));
+        const size_t sliceLength{static_cast<size_t>(rand->randBetween(2ul, 19ul))};
+        n = std::min(p + sliceLength, originalSize);
+    
 
     for (size_t i{n - 1u}; i > p; --i)
     {
-        const size_t randomIndexToSwap{static_cast<size_t>(rand->randBetween(static_cast<unsigned long>(p), static_cast<unsigned long>(i)))};
+        size_t randomIndexToSwap{0u};
+        
+            randomIndexToSwap =
+                static_cast<size_t>(rand->randBetween(static_cast<unsigned long>(p), static_cast<unsigned long>(i)));
+        
         std::swap(newBuffer[i], newBuffer[randomIndexToSwap]);
     }
 }

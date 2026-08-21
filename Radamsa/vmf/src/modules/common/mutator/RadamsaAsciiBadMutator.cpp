@@ -21,6 +21,7 @@
   *
   */
 #include "RadamsaAsciiBadMutator.hpp"
+#include "RadamsaAsciiSpan.hpp"
 #include "RuntimeException.hpp"
 #include <random>
 #include <algorithm>
@@ -86,6 +87,10 @@ RadamsaAsciiBadMutator::~RadamsaAsciiBadMutator()
 {
 
 }
+
+
+
+
 
 /**
  * @brief Register the storage needs for this module
@@ -170,6 +175,8 @@ public:
 
         return;
     }
+
+
     /**
      * @brief Transforms data chunks into a single continuous byte vector.
      * 
@@ -296,6 +303,8 @@ private:
 
         return;
     }
+
+
 };
 /**
  * @struct Data
@@ -378,6 +387,8 @@ public:
 
         return;
     }
+
+
     /**
      * @brief Transforms data chunks into a single continuous byte vector.
      * 
@@ -412,8 +423,80 @@ private:
     }
     
     /**
-     * @brief Splits a byte vector into Data chunks. The first chunk must be a run of a least "minTexty" printable ASCII bytes.
-     * 
+     * @brief Splits a printable run into raw text and matched quote-delimited elements.
+     * Escaped delimiters remain inside quoted data; unmatched quotes remain raw text.
+     */
+    static std::vector<Text> parseTexty(const std::vector<Byte>& input)
+    {
+        std::vector<Text> result;
+        size_t position{0u};
+        size_t rawStart{0u};
+
+        while (position < input.size())
+        {
+            const Byte delimiter = input[position];
+            if (delimiter != 39u && delimiter != 34u)
+            {
+                ++position;
+                continue;
+            }
+
+            size_t closing{position + 1u};
+            bool foundClosing{false};
+            while (closing < input.size())
+            {
+                if (input[closing] == 92u)
+                {
+                    if (closing + 1u < input.size())
+                    {
+                        closing += 2u;
+                        continue;
+                    }
+                    break;
+                }
+                if (input[closing] == delimiter)
+                {
+                    foundClosing = true;
+                    break;
+                }
+                ++closing;
+            }
+
+            if (!foundClosing)
+            {
+                ++position;
+                continue;
+            }
+
+            if (position > rawStart)
+            {
+                result.push_back(Text::texty(std::vector<Byte>(
+                    input.begin() + static_cast<std::vector<Byte>::difference_type>(rawStart),
+                    input.begin() + static_cast<std::vector<Byte>::difference_type>(position))));
+            }
+
+            const std::vector<Byte> quoted(
+                input.begin() + static_cast<std::vector<Byte>::difference_type>(position + 1u),
+                input.begin() + static_cast<std::vector<Byte>::difference_type>(closing));
+            result.push_back(Text::delim(
+                Delimited::make(static_cast<char>(delimiter), quoted)));
+
+            position = closing + 1u;
+            rawStart = position;
+        }
+
+        if (rawStart < input.size())
+        {
+            result.push_back(Text::texty(std::vector<Byte>(
+                input.begin() + static_cast<std::vector<Byte>::difference_type>(rawStart),
+                input.end())));
+        }
+        return result;
+    }
+
+    /**
+     * @brief Splits a byte vector into Data chunks. The first chunk must be a run of at least "minTexty" printable ASCII bytes.
+     *
      * @param input Byte vector to parse and split
      * @param minTexty The minimal size of the first chunk of ASCII bytes.
      * @param out Out vector for Data chunks
@@ -434,8 +517,7 @@ private:
 
         // Grab first text chunk
         vector<Byte> slice(input.begin(), input.begin() + pos);
-        vector<Text> firstRun;
-        firstRun.push_back(Text::texty(slice));
+        vector<Text> firstRun = parseTexty(slice);
         out.insert(out.begin(), Data{firstRun});
 
         // Process remainder
@@ -447,8 +529,7 @@ private:
                 // if we just finished a texty run [start, pos), capture it
                 if (pos > start) {
                     vector<Byte> nextSlice(input.begin() + start, input.begin() + pos);
-                    vector<Text> t;
-                    t.push_back(Text::texty(nextSlice));
+                    vector<Text> t = parseTexty(nextSlice);
                     out.push_back(Data{t});
                 }
                 // treat the current non-text byte as its own Data chunk
@@ -461,8 +542,7 @@ private:
         // if input ends in the middle of a texty run [start, input.size()), capture the run
         if (pos > start) {
             vector<Byte> finalSlice(input.begin() + start, input.begin() + pos);
-            vector<Text> finalTexty;
-            finalTexty.push_back(Text::texty(finalSlice));
+            vector<Text> finalTexty = parseTexty(finalSlice);
             out.push_back(Data{finalTexty});
         }
 
@@ -505,7 +585,7 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
 
     vector<uint8_t> data(originalBuffer, originalBuffer + originalSize);
 
-    optional<Ascii> parsedAscii = Ascii::parse(data);
+    optional<ascii_detail::SpanAscii> parsedAscii = ascii_detail::SpanAscii::parse(data);
     // Check if ASCII parsing was successful
     if (!parsedAscii)
     {
@@ -513,7 +593,9 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
         return;
     }
 
-    parsedAscii->mutate(this->rand, m_maxNewlineInsertions);
+    
+        parsedAscii->mutate(this->rand, m_maxNewlineInsertions);
+    
 
     const size_t estimatedAsciiOutputBytes{parsedAscii->serializedSize()};
     if (estimatedAsciiOutputBytes > m_maxAsciiOutputBytes)
@@ -528,8 +610,7 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
         return;
     }
 
-    vector<Byte> mutatedBytes = parsedAscii->unlex();
-    const size_t newBufferSize{mutatedBytes.size()};
+    const size_t newBufferSize{estimatedAsciiOutputBytes};
     if (newBufferSize > INT_MAX) {
         //Check to see if the newBufferSize excedes the maximum size.
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
@@ -537,6 +618,5 @@ void RadamsaAsciiBadMutator::mutateTestCase(StorageModule& storage, StorageEntry
     }
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
 
-    memset(newBuffer, 0u, newBufferSize);
-    memcpy(newBuffer, mutatedBytes.data(), mutatedBytes.size());
+    parsedAscii->serialize(newBuffer);
 }

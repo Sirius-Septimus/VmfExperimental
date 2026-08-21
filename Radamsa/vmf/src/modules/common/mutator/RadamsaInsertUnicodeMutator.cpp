@@ -57,7 +57,7 @@ void RadamsaInsertUnicodeMutator::init(ConfigInterface& config)
  */
 RadamsaInsertUnicodeMutator::RadamsaInsertUnicodeMutator(std::string name) : MutatorModule(name)
 {
-    // Values obtained from github.com/microsoft/rusty-radamsa/blob/main/src/mutations.rs#L677
+    // Values obtained from the upstream mutation table.
     this->funnyUnicode.push_back(this->encodeUtf8(U'\u202E'));     // Right to Left Override
     this->funnyUnicode.push_back(this->encodeUtf8(U'\u202D'));     // Left to Right Override
     this->funnyUnicode.push_back(this->encodeUtf8(U'\u180E'));     // Mongolian Vowel Separator
@@ -94,6 +94,50 @@ RadamsaInsertUnicodeMutator::RadamsaInsertUnicodeMutator(std::string name) : Mut
     this->funnyUnicode.push_back({251, 238, 40});
     this->funnyUnicode.push_back({251, 238, 40, 255});
     this->funnyUnicode.push_back({132, 49, 149, 51});
+
+    // Append these valid scalar values and inclusive ranges after
+    // the original 36 byte sequences. Keep this order synchronized with
+    // the initial entry list.
+    auto appendCodePoint = [this](char32_t codePoint)
+    {
+        this->funnyUnicode.push_back(this->encodeUtf8(codePoint));
+    };
+    auto appendRange = [&appendCodePoint](char32_t low, char32_t high)
+    {
+        for (char32_t codePoint = low; codePoint <= high; ++codePoint)
+        {
+            appendCodePoint(codePoint);
+        }
+    };
+
+    appendRange(0x0009, 0x000d);
+    appendCodePoint(0x00a0);
+    appendCodePoint(0x1680);
+    appendCodePoint(0x180e);
+    appendRange(0x2000, 0x200a);
+    appendCodePoint(0x2028);
+    appendCodePoint(0x2029);
+    appendCodePoint(0x202f);
+    appendCodePoint(0x205f);
+    appendCodePoint(0x3000);
+    appendRange(0x200e, 0x200f);
+    appendRange(0x202a, 0x202e);
+    appendRange(0x200c, 0x200d);
+    appendCodePoint(0x0345);
+    appendCodePoint(0x00b6);
+    appendRange(0x02d0, 0x02d1);
+    appendCodePoint(0xff70);
+    appendRange(0x02b0, 0x02b8);
+    appendCodePoint(0xfdd0);
+    appendCodePoint(0x034f);
+    appendRange(0x115f, 0x1160);
+    appendRange(0x2065, 0x2069);
+    appendCodePoint(0x3164);
+    appendCodePoint(0xffa0);
+    appendCodePoint(0xe0001);
+    appendRange(0xe0020, 0xe007f);
+    appendRange(0x0e40, 0x0e44);
+    appendCodePoint(0x1f4a9);
 }
 
 /**
@@ -104,6 +148,10 @@ RadamsaInsertUnicodeMutator::~RadamsaInsertUnicodeMutator()
 {
 
 }
+
+
+
+
 
 /**
  * @brief Register the storage needs for this module
@@ -119,8 +167,6 @@ void RadamsaInsertUnicodeMutator::registerStorageNeeds(StorageRegistry& registry
 void RadamsaInsertUnicodeMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
 
-    // Minimum input size accepted by this mutator (in bytes).
-    const size_t minimumSize{1u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -137,26 +183,28 @@ void RadamsaInsertUnicodeMutator::mutateTestCase(StorageModule& storage, Storage
     }
 
     // Check if buffer pointer is valid (not null)
-    if (originalBuffer == nullptr)
+    if (originalBuffer == nullptr && originalSize != 0u)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
-    if (originalSize < minimumSize)
+    std::vector<uint8_t> data;
+    if (originalSize != 0u)
     {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
+        data.assign(originalBuffer, originalBuffer + originalSize);
     }
 
-    std::vector<uint8_t> data(originalBuffer, originalBuffer + originalSize);
+    size_t insert_index{0u};
+    size_t unicode_index{0u};
+    
+        const unsigned long lower{0ul};
+        unsigned long upper{static_cast<unsigned long>(data.size())};
+        insert_index = static_cast<size_t>(this->rand->randBetween(lower, upper));
 
-    const unsigned long lower{0ul};
-    unsigned long upper{static_cast<unsigned long>(data.size() - 1)};
-    const size_t insert_index = static_cast<size_t>(this->rand->randBetween(lower, upper));
-
-    upper = static_cast<unsigned long>(this->funnyUnicode.size() - 1);
-    const std::vector<uint8_t> toInsert = this->funnyUnicode[static_cast<size_t>(this->rand->randBetween(lower, upper))];
+        upper = static_cast<unsigned long>(this->funnyUnicode.size() - 1u);
+        unicode_index = static_cast<size_t>(this->rand->randBetween(lower, upper));
+    
+    const std::vector<uint8_t> toInsert = this->funnyUnicode[unicode_index];
 
     data.insert(
         data.begin() + insert_index,

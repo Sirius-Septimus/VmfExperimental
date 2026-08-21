@@ -21,6 +21,7 @@
   *
   */
 #include "RadamsaReplaceNodeMutator.hpp"
+#include "RadamsaDelimiterTree.hpp"
 #include "RuntimeException.hpp"
 #include <random>
 #include <algorithm>
@@ -68,6 +69,10 @@ RadamsaReplaceNodeMutator::~RadamsaReplaceNodeMutator()
 {
 
 }
+
+
+
+
 
 /**
  * @brief Register the storage needs for this module
@@ -117,15 +122,17 @@ void RadamsaReplaceNodeMutator::mutateTestCase(StorageModule& storage, StorageEn
     /*
      *	Build the tree via the noexcept tryBuild factory; fall back to CopyBufferAsIs when the input does not parse as a tree.
      */
-    auto maybeTree = Tree::tryBuild(treeStr);
+    auto maybeTree = RadamsaDelimiterTree::tryBuild(treeStr);
     if (!maybeTree)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
-    Tree& tr = *maybeTree;
+    RadamsaDelimiterTree& tr = *maybeTree;
 
-    size_t numNodes = tr.countNodes(tr.root);
+    std::vector<RadamsaDelimiterTree::Node*> candidates;
+    tr.collectCandidates(candidates);
+    const size_t numNodes = candidates.size();
     // Check if tree has minimum required number of nodes
     if (numNodes < minimumNodes)
     {
@@ -133,18 +140,22 @@ void RadamsaReplaceNodeMutator::mutateTestCase(StorageModule& storage, StorageEn
         return;
     }
 
-    const unsigned long lower{0ul};
-    const unsigned long upper{static_cast<unsigned long>(numNodes - 1)};
-    size_t nodeIndexToReplace{static_cast<size_t>(this->rand->randBetween(lower, upper))};   // not const, because findNodeByIndex will modify it
-    size_t nodeIndexToCopy{static_cast<size_t>(this->rand->randBetween(lower, upper))};      // ^
+    size_t nodeIndexToReplace{0u};
+    size_t nodeIndexToCopy{0u};
+    
+        const unsigned long lower{0ul};
+        const unsigned long upper{static_cast<unsigned long>(numNodes - 1)};
+        nodeIndexToReplace = static_cast<size_t>(this->rand->randBetween(lower, upper));
+        nodeIndexToCopy = static_cast<size_t>(this->rand->randBetween(lower, upper));
+    
 
     if(nodeIndexToReplace != nodeIndexToCopy) {
-        Node* toReplace = tr.findNodeByIndex(tr.root, nodeIndexToReplace); 
-        Node* toCopy = tr.findNodeByIndex(tr.root, nodeIndexToCopy);
+        RadamsaDelimiterTree::Node* toReplace = candidates[nodeIndexToReplace]; 
+        RadamsaDelimiterTree::Node* toCopy = candidates[nodeIndexToCopy];
         tr.replaceNode(toReplace, toCopy);
     }
 
-    const string modTreeStr = tr.toString(tr.root);
+    const string modTreeStr = tr.toString();
     const size_t newBufferSize{modTreeStr.length()};
     if (newBufferSize > INT_MAX) {
         //Check to see if the newBufferSize excedes the maximum size.

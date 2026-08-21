@@ -22,8 +22,10 @@
   */
 #include "RadamsaDeleteNodeMutator.hpp"
 #include "RuntimeException.hpp"
+#include "RadamsaDelimiterTree.hpp"
 #include <random>
 #include <algorithm>
+#include <climits>
 
 using namespace vmf;
 
@@ -69,6 +71,10 @@ RadamsaDeleteNodeMutator::~RadamsaDeleteNodeMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -82,31 +88,27 @@ void RadamsaDeleteNodeMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaDeleteNodeMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Delete a random node from the tree without preserving its children
+    // Delete a nested delimiter subtree.
 
-    const size_t minimumSize{1};   // minimal case consists of a single-character root node
+    const size_t minimumSize{1u};
     size_t originalSize;
     char* originalBuffer;
 
-    // Try to get buffer size and pointer, return early if buffer is not allocated
     try
     {
         originalBuffer = baseEntry->getBufferPointer(testCaseKey);
         originalSize = baseEntry->getBufferSize(testCaseKey);
     }
-    catch(const RuntimeException e)
+    catch (const RuntimeException e)
     {
-        // Buffer not allocated
         return;
     }
 
-    // Check if buffer pointer is valid (not null)
     if (originalBuffer == nullptr)
     {
         return;
     }
 
-    // Check if buffer size meets minimum requirement
     if (originalSize < minimumSize)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
@@ -114,32 +116,43 @@ void RadamsaDeleteNodeMutator::mutateTestCase(StorageModule& storage, StorageEnt
     }
 
     const std::string treeStr(originalBuffer, originalSize);
-    /*
-     *	Build the tree via the noexcept tryBuild factory; fall back to CopyBufferAsIs when the input does not parse as a tree.
-     */
-    auto maybeTree = Tree::tryBuild(treeStr);
+    auto maybeTree = RadamsaDelimiterTree::tryBuild(treeStr);
     if (!maybeTree)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
-    Tree& tr = *maybeTree;
+    RadamsaDelimiterTree& tree = *maybeTree;
 
-    size_t numNodes = tr.countNodes(tr.root);
+    std::vector<RadamsaDelimiterTree::Node*> candidates;
+    tree.collectCandidates(candidates);
+    if (candidates.empty())
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
-    const unsigned long lower{0ul};
-    const unsigned long upper{static_cast<unsigned long>(numNodes - 1)};
-    size_t nodeIndexToDelete{static_cast<size_t>(this->rand->randBetween(lower, upper))};    // not const, because findNodeByIndex will modify it
+    size_t selectedIndex{0u};
+    
+        selectedIndex = static_cast<size_t>(this->rand->randBetween(
+            0ul, static_cast<unsigned long>(candidates.size() - 1u)));
+    
 
-    Node* nodeToDelete = tr.findNodeByIndex(tr.root, nodeIndexToDelete);
-    tr.deleteNode(nodeToDelete);
+    if (!tree.deleteSelectedNode(candidates[selectedIndex]))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
-    string modTreeStr = tr.toString(tr.root);
+    const size_t newBufferSize{tree.serializedSize()};
+    if (newBufferSize > static_cast<size_t>(INT_MAX))
+    {
+        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
+        return;
+    }
 
-    const size_t newBufferSize{modTreeStr.length()};
-
+    const std::string modifiedTree = tree.toString();
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
-
-    memcpy(newBuffer, modTreeStr.data(), newBufferSize);
+    memcpy(newBuffer, modifiedTree.data(), newBufferSize);
 }

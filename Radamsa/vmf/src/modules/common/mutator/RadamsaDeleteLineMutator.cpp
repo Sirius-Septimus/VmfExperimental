@@ -67,6 +67,10 @@ RadamsaDeleteLineMutator::~RadamsaDeleteLineMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -120,7 +124,10 @@ void RadamsaDeleteLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
         return;
     }
 
-    const size_t randomLineIndex{static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)))};
+    size_t randomLineIndex{0u};
+    
+        randomLineIndex = static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
+    
     std::vector<size_t> lineOrder(numLines);
     for (size_t i{0u}; i < numLines; ++i)
     {
@@ -139,5 +146,4 @@ void RadamsaDeleteLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
     memset(newBuffer, 0u, newBufferSize);
     CopyAllLineDataToBuffer(originalBuffer, lines, lineOrder, newBuffer);
 }
-
 

@@ -69,6 +69,10 @@ RadamsaInsertLineMutator::~RadamsaInsertLineMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -84,7 +88,7 @@ void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
 {
     // Insert a random existing line into a random place.
 
-    constexpr size_t minimumSize{2u};   // minimal case consists of two newlines
+    constexpr size_t minimumSize{1u};   // one newline is one insertable line
     size_t originalSize;
     char* originalBuffer;
 
@@ -128,8 +132,23 @@ void RadamsaInsertLineMutator::mutateTestCase(StorageModule& storage, StorageEnt
         lineOrder[i] = i;
     }
 
-    const size_t originalLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u)));
-    const size_t newLineIndex = static_cast<size_t>(this->rand->randBetween(0ul, static_cast<unsigned long>(numLines)));
+    size_t originalLineIndex{0u};
+    size_t newLineIndex{0u};
+    if (numLines == 1u)
+    {
+        // The single-line special case appends a copy of the sole line.
+        originalLineIndex = 0u;
+        newLineIndex = 1u;
+    }
+    else
+    {
+        originalLineIndex = static_cast<size_t>(
+            this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u))
+        );
+        newLineIndex = static_cast<size_t>(
+            this->rand->randBetween(0ul, static_cast<unsigned long>(numLines - 1u))
+        );
+    }
     lineOrder.insert(lineOrder.begin() + static_cast<std::vector<size_t>::difference_type>(newLineIndex), originalLineIndex);
 
     const size_t newBufferSize{GetAllLineDataSize(lines, lineOrder)};

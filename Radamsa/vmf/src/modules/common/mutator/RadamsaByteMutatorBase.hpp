@@ -23,6 +23,7 @@
 #include "RadamsaMutatorBase.hpp"
 #include <algorithm>
 #include <cctype>
+#include <gmpxx.h>
 #include <optional>
 #include <string>
 
@@ -46,7 +47,7 @@ public:
     *
     * @brief This structure contains the state of an array of numbers translated from an array of text.
     */
-    using NumberValue = unsigned __int128;
+    using NumberValue = mpz_class;
 
     struct NumInfo {
         NumberValue value = 0; /**<The value of the data*/
@@ -54,7 +55,9 @@ public:
         size_t length = 0; /**<the size of the data*/
     };
 
-    static constexpr NumberValue NUMBER_VALUE_MAX{~static_cast<NumberValue>(0)};
+    static NumberValue numberValueMax() {
+        return (NumberValue(1) << 255u) - 1;
+    }
 
     /**
     * @brief Generates a random amount of repetitions to be performed. Upper limit is 20000;
@@ -66,19 +69,18 @@ public:
         constexpr size_t MINIMUM_UPPER_LIMIT{0x2u};
         constexpr size_t MAXIMUM_UPPER_LIMIT{0x20000u};
 
-        size_t randomStop{rand->randBetween(0ul, static_cast<unsigned long>(MINIMUM_UPPER_LIMIT))};
         size_t randomUpperLimit{MINIMUM_UPPER_LIMIT};
 
-        while(randomStop != 0u)
+        while(rand->randBetween(0ul, 1ul) != 0u &&
+              randomUpperLimit != MAXIMUM_UPPER_LIMIT)
         {
-            if(randomUpperLimit == MAXIMUM_UPPER_LIMIT)
-                break;
-
             randomUpperLimit <<= 1u;
-            randomStop = rand->randBetween(0ul, static_cast<unsigned long>(MINIMUM_UPPER_LIMIT));
         }
 
-        return rand->randBetween(0ul, static_cast<unsigned long>(randomUpperLimit));
+        return rand->randBetween(
+            0ul,
+            static_cast<unsigned long>(randomUpperLimit - 1u)
+        );
     }
     /**
      * @brief Encodes 21-bit character code points into UTF-8 values of 1 to 4 bytes
@@ -122,8 +124,8 @@ public:
                 bool overflow = false;
                 while (i < data.size() && isdigit(static_cast<unsigned char>(data[i]))) {
                     const unsigned digit = static_cast<unsigned>(data[i] - static_cast<uint8_t>('0'));
-                    if (!overflow && value <= (NUMBER_VALUE_MAX - static_cast<NumberValue>(digit)) / 10u) {
-                        value = value * 10u + static_cast<NumberValue>(digit);
+                    if (!overflow && value <= (numberValueMax() - digit) / 10u) {
+                        value = value * 10u + digit;
                     } else {
                         overflow = true;
                     }
@@ -147,10 +149,7 @@ public:
         vector<unsigned int> shifts = {1, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128};
 
         for (unsigned int s : shifts) {
-            if (s >= 128u) {
-                continue;
-            }
-            NumberValue val = static_cast<NumberValue>(1) << s;
+            NumberValue val = NumberValue(1) << s;
             result.push_back(val);
             result.push_back(val - 1u);
             result.push_back(val + 1u);
@@ -159,19 +158,8 @@ public:
         return result;
     }
 
-    static std::string numberValueToString(NumberValue value) {
-        if (value == 0u) {
-            return "0";
-        }
-
-        std::string result;
-        while (value != 0u) {
-            const unsigned digit = static_cast<unsigned>(value % 10u);
-            result.push_back(static_cast<char>('0' + digit));
-            value /= 10u;
-        }
-        std::reverse(result.begin(), result.end());
-        return result;
+    static std::string numberValueToString(const NumberValue& value) {
+        return value.get_str();
     }
     /**
      * @brief Suffix view used by the fuse helpers so we do not materialize every suffix as a separate vector.

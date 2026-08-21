@@ -43,7 +43,12 @@ class RadamsaDeleteLineMutator: public MutatorModule, public RadamsaLineMutatorB
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
+        // deletes so VMF runs stay easy to compare under identical decisions.
+
     private:
         VmfRand* rand ;
+
+        // When enabled, mutateTestCase() bypasses VmfRand and deletes the
+        // harness-provided line index instead.
 };
 }

@@ -69,6 +69,10 @@ RadamsaIncrementByteMutator::~RadamsaIncrementByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -123,22 +127,14 @@ void RadamsaIncrementByteMutator::mutateTestCase(StorageModule& storage, Storage
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, originalBuffer, originalSize);
 
-    // Select a random byte to circularly increment.
+    size_t indexToIncrement{0u};
+    
+        indexToIncrement = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u))
+        );
+    
 
-    const unsigned long lower{0ul};
-    const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
-    const size_t randomIndexToIncrement{
-                                    std::clamp(
-                                        static_cast<size_t>(rand->randBetween(
-                                            lower,
-                                            maximumRandomIndexValue)),
-                                        static_cast<size_t>(lower),
-                                        upper
-                                    )
-    };
-
-    const auto oldByte{static_cast<unsigned char>(originalBuffer[randomIndexToIncrement])};
+    const auto oldByte{static_cast<unsigned char>(originalBuffer[indexToIncrement])};
     const auto newByte{static_cast<unsigned char>(oldByte + 0x01u)};
-    newBuffer[randomIndexToIncrement] = static_cast<char>(newByte);
+    newBuffer[indexToIncrement] = static_cast<char>(newByte);
 }

@@ -70,6 +70,10 @@ RadamsaInsertByteMutator::~RadamsaInsertByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -83,7 +87,7 @@ void RadamsaInsertByteMutator::registerStorageNeeds(StorageRegistry& registry)
 
 void RadamsaInsertByteMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-    // Consume the original buffer by inserting a byte at a Rust-like position in the data.
+    // Consume the original buffer by inserting a byte at a randomly chosen position.
 
     size_t originalSize;
     char* originalBuffer;
@@ -113,33 +117,36 @@ void RadamsaInsertByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
 
-    // Select a Rust-like insertion position in the range [0, originalSize].
-    const size_t randomInsertionIndex{
-        static_cast<size_t>(rand->randBetween(0ul, static_cast<unsigned long>(originalSize)))
-    };
+    // semantic decisions this mutator should make. That keeps the focus on
+    // the focus on mutation behavior rather than RNG implementation details.
+    size_t insertionIndex{0u};
+    char insertedByte{0};
 
-    const char randomByte{
-        static_cast<char>(
+    
+        insertionIndex = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(originalSize))
+        );
+        insertedByte = static_cast<char>(
             rand->randBetween(
                 0ul,
                 static_cast<unsigned long>(std::numeric_limits<unsigned char>::max())
             )
-        )
-    };
+        );
+    
 
     // Copy data from the original buffer into the new buffer while inserting one extra byte.
     for (size_t sourceIndex{0u}, destinationIndex{0u}; sourceIndex < originalSize; ++sourceIndex, ++destinationIndex)
     {
-        if (destinationIndex == randomInsertionIndex)
+        if (destinationIndex == insertionIndex)
         {
-            newBuffer[destinationIndex++] = randomByte;
+            newBuffer[destinationIndex++] = insertedByte;
         }
 
         newBuffer[destinationIndex] = originalBuffer[sourceIndex];
     }
 
-    if (randomInsertionIndex == originalSize)
+    if (insertionIndex == originalSize)
     {
-        newBuffer[originalSize] = randomByte;
+        newBuffer[originalSize] = insertedByte;
     }
 }

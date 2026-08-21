@@ -69,6 +69,10 @@ RadamsaDropByteMutator::~RadamsaDropByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -123,24 +127,18 @@ void RadamsaDropByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, newBufferSize)};
     memset(newBuffer, 0u, newBufferSize);
 
-    // Select a random byte to drop from the original buffer.
-
-    const unsigned long lower{0ul};
-    const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
-    const size_t randomIndexToDrop{
-                            std::clamp(
-                                    static_cast<size_t>(rand->randBetween(
-                                                        lower,
-                                                        maximumRandomIndexValue)),
-                                                        static_cast<size_t>(lower),
-                                                        upper)};
+    size_t indexToDrop{0u};
+    
+        indexToDrop = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u))
+        );
+    
 
     // Copy data from the original buffer into the new buffer, but exclude the random byte.
     
     for (size_t sourceIndex{0u}, destinationIndex{0u}; sourceIndex < originalSize; ++sourceIndex)
     {
-        if (sourceIndex != randomIndexToDrop)
+        if (sourceIndex != indexToDrop)
         {
             newBuffer[destinationIndex] = originalBuffer[sourceIndex];
 

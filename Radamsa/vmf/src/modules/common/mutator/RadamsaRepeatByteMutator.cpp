@@ -80,6 +80,10 @@ RadamsaRepeatByteMutator::~RadamsaRepeatByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -131,7 +135,14 @@ void RadamsaRepeatByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
      */
 
     // Cap repetitions so per-call growth stays within `m_maxByteRepetitions`.
-    size_t numberOfRandomByteRepetitions{GetRandomRepetitionLength(rand)};
+    size_t numberOfRandomByteRepetitions{0u};
+    size_t randomByteRepetitionIndex{0u};
+    
+        numberOfRandomByteRepetitions = GetRandomRepetitionLength(rand);
+        randomByteRepetitionIndex = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u))
+        );
+    
     if (numberOfRandomByteRepetitions > m_maxByteRepetitions)
     {
         numberOfRandomByteRepetitions = m_maxByteRepetitions;
@@ -142,21 +153,6 @@ void RadamsaRepeatByteMutator::mutateTestCase(StorageModule& storage, StorageEnt
 
     char* newBuffer{newEntry->allocateBuffer(testCaseKey, static_cast<int>(newBufferSize))};
     memset(newBuffer, 0u, newBufferSize);
-
-    // Select a random index from which the new bytes will be repeated.
-
-    const unsigned long lower{0ul};
-    const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
-    const size_t randomByteRepetitionIndex{
-                                    std::clamp(
-                                        static_cast<size_t>(rand->randBetween(
-                                            lower,
-                                            maximumRandomIndexValue)),
-                                        static_cast<size_t>(lower),
-                                        upper
-                                    )
-    };
 
     // Copy data from the original buffer into the new buffer, but repeat the target byte.
     // The last element in the new buffer is skipped since it was implicitly set to zero during allocation.

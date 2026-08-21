@@ -70,6 +70,10 @@ RadamsaRandomizeByteMutator::~RadamsaRandomizeByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -122,19 +126,17 @@ void RadamsaRandomizeByteMutator::mutateTestCase(StorageModule& storage, Storage
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, originalBuffer, originalSize);
 
-    // Select a random byte to randomize
-    const unsigned long lower{0ul};
-    const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
-    const size_t randomIndexToRandomize{
-                                    std::clamp(
-                                        static_cast<size_t>(rand->randBetween(
-                                            lower,
-                                            maximumRandomIndexValue)),
-                                        static_cast<size_t>(lower),
-                                        upper
-                                    )
-    };
+    // and replacement byte so both implementations can be compared under the
+    size_t indexToRandomize{0u};
+    unsigned char randomByte{0u};
+    
+        indexToRandomize = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u))
+        );
+        randomByte = static_cast<unsigned char>(
+            rand->randBetween(0ul, static_cast<unsigned long>(std::numeric_limits<unsigned char>::max()))
+        );
+    
 
-    newBuffer[randomIndexToRandomize] = static_cast<char>(rand->randBetween(0ul, static_cast<unsigned long>(std::numeric_limits<unsigned char>::max())));
+    newBuffer[indexToRandomize] = static_cast<char>(randomByte);
 }

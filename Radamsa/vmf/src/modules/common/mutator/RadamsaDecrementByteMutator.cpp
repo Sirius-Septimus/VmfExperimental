@@ -69,6 +69,10 @@ RadamsaDecrementByteMutator::~RadamsaDecrementByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -82,7 +86,7 @@ void RadamsaDecrementByteMutator::registerStorageNeeds(StorageRegistry& registry
 
 void RadamsaDecrementByteMutator::mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey)
 {
-
+    // Consume the original buffer by decrementing a random byte.
     constexpr size_t minimumSize{1u};
     size_t originalSize;
     char* originalBuffer;
@@ -120,21 +124,14 @@ void RadamsaDecrementByteMutator::mutateTestCase(StorageModule& storage, Storage
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, originalBuffer, originalSize);
 
-    // Select a random byte to circularly decrement.
-    const unsigned long lower{0ul};
-    const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
-    const size_t randomIndexToDecrement{
-                                    std::clamp(
-                                        static_cast<size_t>(rand->randBetween(
-                                            lower,
-                                            maximumRandomIndexValue)),
-                                        static_cast<size_t>(lower),
-                                        upper
-                                    )
-    };
+    size_t indexToDecrement{0u};
+    
+        indexToDecrement = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u))
+        );
+    
 
-    const auto oldByte{static_cast<unsigned char>(originalBuffer[randomIndexToDecrement])};
+    const auto oldByte{static_cast<unsigned char>(originalBuffer[indexToDecrement])};
     const auto newByte{static_cast<unsigned char>(oldByte - 0x01u)};
-    newBuffer[randomIndexToDecrement] = static_cast<char>(newByte);
+    newBuffer[indexToDecrement] = static_cast<char>(newByte);
 }

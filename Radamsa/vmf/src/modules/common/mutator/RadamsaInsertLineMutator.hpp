@@ -42,6 +42,7 @@ class RadamsaInsertLineMutator: public MutatorModule, public RadamsaLineMutatorB
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
+
     private:
         VmfRand* rand;
 };

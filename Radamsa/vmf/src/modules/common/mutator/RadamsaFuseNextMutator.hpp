@@ -42,6 +42,8 @@ class RadamsaFuseNextMutator: public MutatorModule, public RadamsaByteMutatorBas
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
+
+
     private:
         VmfRand* rand;
 

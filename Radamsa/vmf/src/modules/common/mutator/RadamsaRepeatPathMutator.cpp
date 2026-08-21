@@ -21,6 +21,7 @@
   *
   */
 #include "RadamsaRepeatPathMutator.hpp"
+#include "RadamsaDelimiterTree.hpp"
 #include "RuntimeException.hpp"
 #include <random>
 #include <algorithm>
@@ -50,7 +51,7 @@ Module* RadamsaRepeatPathMutator::build(std::string name)
 void RadamsaRepeatPathMutator::init(ConfigInterface& config)
 {
     /*
-     *	Two independent caps govern repeatPath growth: - maxPathRepetitions: a fixed cap on the iteration count. 0 disables this cap. - maxRepeatPathNodes: an adaptive cap on the resulting live-tree node count, applied inside Tree::repeatPath via its maxTotalNodes parameter. 0 disables this cap. The default enables the adaptive node cap with no fixed iteration cap.
+     *	Two independent caps govern repeatPath growth: - maxPathRepetitions: a fixed cap on the iteration count. 0 disables this cap. - maxRepeatPathNodes: an adaptive cap on the resulting live-tree node count, applied by RadamsaDelimiterTree before constructing repeated subtrees. 0 disables this cap. The default enables the adaptive node cap with no fixed iteration cap.
      */
 
     const int repsConfigured = config.getIntParam(getModuleName(), "maxPathRepetitions",
@@ -93,6 +94,9 @@ RadamsaRepeatPathMutator::~RadamsaRepeatPathMutator()
 
 }
 
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -108,7 +112,6 @@ void RadamsaRepeatPathMutator::mutateTestCase(StorageModule& storage, StorageEnt
 {
 
     const size_t minimumSize{4u};   // minimal case consists of two single-character nodes
-    const size_t minimumNodes{2u};
     size_t originalSize;
     char* originalBuffer;
 
@@ -133,57 +136,54 @@ void RadamsaRepeatPathMutator::mutateTestCase(StorageModule& storage, StorageEnt
     /*
      *	Build the tree via the noexcept tryBuild factory; fall back to CopyBufferAsIs when the input does not parse as a tree.
      */
-    auto maybeTree = Tree::tryBuild(treeStr);
+    auto maybeTree = RadamsaDelimiterTree::tryBuild(treeStr);
     if (!maybeTree)
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
-    Tree& tr = *maybeTree;
+    RadamsaDelimiterTree& tr = *maybeTree;
 
-    size_t numNodes = tr.countNodes(tr.root);
-    // Check if tree has minimum required number of nodes
-    if (numNodes < minimumNodes)
+    std::vector<RadamsaDelimiterTree::Node*> candidates;
+    tr.collectCandidates(candidates);
+    if (candidates.empty())
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    std::vector<Node*> internalNodes;
-    tr.collectInternalNodes(tr.root, internalNodes);
-    if (internalNodes.empty())
+    size_t nodeIndex{0u};
+    size_t numReps{0u};
+    
+        const unsigned long lower{0ul};
+        const unsigned long upper{static_cast<unsigned long>(candidates.size() - 1u)};
+        nodeIndex = static_cast<size_t>(this->rand->randBetween(lower, upper));
+        numReps = this->GetRustRandLog10(this->rand);
+        if (m_maxPathRepetitions != 0u &&
+            m_maxPathRepetitions != std::numeric_limits<size_t>::max())
+        {
+            numReps = std::min(numReps, m_maxPathRepetitions);
+        }
+    
+
+    // path already applies the configured limit above.
+    
+
+    tr.repeatSelectedPath(
+        candidates[nodeIndex],
+        numReps,
+        m_maxRepeatPathNodes,
+        m_maxRepeatPathOutputBytes);
+
+    const size_t estimatedOutputSize{tr.serializedSize()};
+    if (estimatedOutputSize > m_maxRepeatPathOutputBytes ||
+        estimatedOutputSize > static_cast<size_t>(INT_MAX))
     {
         CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
         return;
     }
 
-    const unsigned long lower{0ul};
-    const unsigned long upper{static_cast<unsigned long>(internalNodes.size() - 1)};
-    const size_t parentIndex{static_cast<size_t>(this->rand->randBetween(lower, upper))};
-    Node* parent = internalNodes[parentIndex];
-
-    const unsigned long childUpper{static_cast<unsigned long>(parent->children.size() - 1)};
-    size_t childIndex{static_cast<size_t>(this->rand->randBetween(lower, childUpper))};
-    /*
-     * Repetition count comes from GetRandomRepetitionLength. Two composable caps then bound the work: the fixed `m_maxPathRepetitions` cap clamps the iteration count up front, and the adaptive `m_maxRepeatPathNodes` cap is forwarded to `repeatPath`, which converts it into an effective iteration count from the per-iteration node delta.
-     */
-    size_t numReps = this->GetRandomRepetitionLength(this->rand);
-    if (m_maxPathRepetitions != std::numeric_limits<size_t>::max())
-    {
-        numReps = std::min(numReps, m_maxPathRepetitions);
-    }
-
-    tr.repeatPath(parent, childIndex, numReps, m_maxRepeatPathNodes);
-
-    // Reject oversized output before serializing the tree back into a string.
-    const size_t estimatedOutputSize{tr.estimateSerializedSize(tr.root)};
-    if (estimatedOutputSize > m_maxRepeatPathOutputBytes || estimatedOutputSize > static_cast<size_t>(INT_MAX))
-    {
-        CopyBufferAsIs(baseEntry, newEntry, testCaseKey);
-        return;
-    }
-
-    const string modTreeStr = tr.toString(tr.root);
+    const string modTreeStr = tr.toString();
     const size_t newBufferSize{modTreeStr.length()};
     if (newBufferSize > INT_MAX) {
         //Check to see if the newBufferSize excedes the maximum size.

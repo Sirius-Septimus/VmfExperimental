@@ -70,6 +70,10 @@ RadamsaModifyTextNumberMutator::~RadamsaModifyTextNumberMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -125,11 +129,67 @@ void RadamsaModifyTextNumberMutator::mutateTestCase(StorageModule& storage, Stor
         return;
     }
 
-    NumInfo toMutate = dataNums[this->rand->randBetween(0, int(dataNums.size() - 1))];
+    NumInfo toMutate;
+    size_t mutationCase{0u};
+    
+        toMutate = dataNums[this->rand->randBetween(0, int(dataNums.size() - 1))];
+        mutationCase = static_cast<size_t>(this->rand->randBetween(0, 11));
+    
 
     const vector<NumberValue> interestingNums = this->generateInterestingNumbers();
+    auto selectInterestingNumber = [&]() -> NumberValue
+    {
+        
+        return interestingNums[
+            this->rand->randBetween(0, int(interestingNums.size() - 1))
+        ];
+    };
+
+    auto selectSignedRandomValue = [&](const NumberValue& limit) -> NumberValue
+    {
+        
+
+        // Narrow the bound to i128 before sampling,
+        // then sample uniformly from [-abs(bound), abs(bound)).
+        const NumberValue twoTo128 = NumberValue(1) << 128u;
+        const NumberValue twoTo127 = NumberValue(1) << 127u;
+        NumberValue narrowed = limit % twoTo128;
+        if (narrowed >= twoTo127)
+        {
+            narrowed -= twoTo128;
+        }
+        if (narrowed == -twoTo127)
+        {
+            return 0;
+        }
+        const NumberValue magnitude = narrowed < 0 ? -narrowed : narrowed;
+        if (magnitude == 0)
+        {
+            return 0;
+        }
+
+        const NumberValue span = magnitude * 2u;
+        const size_t bitCount = mpz_sizeinbase(span.get_mpz_t(), 2);
+        NumberValue candidate;
+        do
+        {
+            candidate = 0;
+            for (size_t bit = 0; bit < bitCount; bit += 64u)
+            {
+                const uint64_t low = static_cast<uint64_t>(
+                    this->rand->randBetween(0ul, 0xfffffffful));
+                const uint64_t high = static_cast<uint64_t>(
+                    this->rand->randBetween(0ul, 0xfffffffful));
+                const uint64_t word = low | (high << 32u);
+                candidate += NumberValue(word) << bit;
+            }
+            candidate %= NumberValue(1) << bitCount;
+        } while (candidate >= span);
+        return candidate - magnitude;
+    };
+
     NumberValue newValue;
-    switch (this->rand->randBetween(0, 11)) {
+    switch (mutationCase) {
         case 0:
             newValue = toMutate.value + static_cast<NumberValue>(1); break;
         case 1:
@@ -141,29 +201,47 @@ void RadamsaModifyTextNumberMutator::mutateTestCase(StorageModule& storage, Stor
         case 4:
         case 5:
         case 6:
-            newValue = interestingNums[
-                this->rand->randBetween(0, int(interestingNums.size() - 1))
-            ]; break;
-        case 7:
-            newValue = toMutate.value + interestingNums[
-                this->rand->randBetween(0, int(interestingNums.size() - 1))
-            ]; break;
-        case 8: {
-            NumberValue val = interestingNums[
-                this->rand->randBetween(0, int(interestingNums.size() - 1))
-            ];
-            newValue = toMutate.value - val;
+            newValue = selectInterestingNumber(); break;
+        case 7: {
+            const NumberValue sampled = selectSignedRandomValue(selectInterestingNumber());
+            newValue = sampled + toMutate.value;
             break;
         }
-        case 9:
-            newValue = toMutate.value * static_cast<NumberValue>(2); break;
+        case 8: {
+            const NumberValue sampled = selectSignedRandomValue(selectInterestingNumber());
+            newValue = sampled - toMutate.value;
+            break;
+        }
+        case 9: {
+            const NumberValue sampled = selectSignedRandomValue(toMutate.value * 2u);
+            newValue = sampled - toMutate.value;
+            break;
+        }
         default: {
-            NumberValue n = static_cast<NumberValue>(this->rand->randBetween(1, 128));
-            unsigned int s = this->rand->randBetween(0, 2);
-            newValue = (s == 0) ? (toMutate.value - n) : (toMutate.value + n);
+            NumberValue n;
+            unsigned int signChoice;
+            
+                n = static_cast<NumberValue>(this->rand->randBetween(1, 128));
+                signChoice = this->rand->randBetween(0, 2);
+            
+            if (signChoice == 0u)
+            {
+                newValue = toMutate.value - n;
+            }
+            else
+            {
+                newValue = toMutate.value + n;
+            }
             break;
         }
     }
+
+    // Match i256 overflowing arithmetic before formatting the result.
+    const NumberValue i256Modulus = NumberValue(1) << 256u;
+    const NumberValue i256SignBit = NumberValue(1) << 255u;
+    newValue %= i256Modulus;
+    if (newValue < 0) newValue += i256Modulus;
+    if (newValue >= i256SignBit) newValue -= i256Modulus;
 
     std::string newValueStr = numberValueToString(newValue);
     vector<uint8_t> new_data;

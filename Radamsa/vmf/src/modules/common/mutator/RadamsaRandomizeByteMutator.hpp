@@ -42,7 +42,12 @@ class RadamsaRandomizeByteMutator: public MutatorModule, public RadamsaByteMutat
         virtual void registerStorageNeeds(StorageRegistry& registry);
         virtual void mutateTestCase(StorageModule& storage, StorageEntry* baseEntry, StorageEntry* newEntry, int testCaseKey);
 
+        // byte so VMF runs stay easy to compare under identical decisions.
+
     private:
         VmfRand* rand;
+
+        // When enabled, mutateTestCase() bypasses VmfRand and uses the
+        // harness-provided byte index and replacement byte instead.
 };
 }

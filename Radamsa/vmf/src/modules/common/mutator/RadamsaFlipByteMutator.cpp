@@ -69,6 +69,10 @@ RadamsaFlipByteMutator::~RadamsaFlipByteMutator()
 
 }
 
+
+
+
+
 /**
  * @brief Register the storage needs for this module
  *
@@ -123,32 +127,21 @@ void RadamsaFlipByteMutator::mutateTestCase(StorageModule& storage, StorageEntry
     memset(newBuffer, 0u, newBufferSize);
     memcpy(newBuffer, originalBuffer, originalSize);
 
-    // Select a random byte to drop from the original buffer.
+    // and bit index to flip so both implementations can be compared under the
+    size_t indexToFlip{0u};
+    size_t bitShift{0u};
 
-    const unsigned long lower{0ul};
-    const size_t upper{originalSize - 1u};
-    const unsigned long maximumRandomIndexValue{static_cast<unsigned long>(originalSize)};
-    const size_t randomIndexToFlip{
-                            std::clamp(
-                                    static_cast<size_t>(rand->randBetween(
-                                                lower,
-                                                maximumRandomIndexValue
-                                    )),
-                                    static_cast<size_t>(lower),
-                                    upper)};
+    
+        indexToFlip = static_cast<size_t>(
+            rand->randBetween(0ul, static_cast<unsigned long>(originalSize - 1u))
+        );
 
-    // Select a random bit to flip from the random byte.
-    // When computing the random bit shift,
-    // we add 1 so that a maximum number of 8 bit shift operations can be performed against a char containing the value 0x01.
+        // Use the 0..8 range so valid bit positions are 0 through 7.
+        bitShift = static_cast<size_t>(rand->randBetween(0ul, 7ul));
+    
 
-    const size_t randomBitShift{
-        static_cast<size_t>(rand->randBetween(
-            0ul, 
-            7ul
-        ))
-    };
-    const char randomMaskedBit{static_cast<char>(0x01u << randomBitShift)};
+    const char maskedBit{static_cast<char>(0x01u << bitShift)};
 
-    // Flip the random byte by performing an XOR operation with a random masked bit.
-    newBuffer[randomIndexToFlip] ^= randomMaskedBit;
+    // Flip the chosen byte by performing an XOR operation with the masked bit.
+    newBuffer[indexToFlip] ^= maskedBit;
 }
